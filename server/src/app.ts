@@ -1,3 +1,4 @@
+import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
@@ -62,11 +63,25 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerEventRoutes(app);
 
   if (opts.serveStatic) {
-    await app.register(fastifyStatic, { root: WEB_DIST, wildcard: false });
+    await app.register(fastifyStatic, {
+      root: WEB_DIST,
+      wildcard: false,
+      setHeaders: (res, filePath) => {
+        // Vite content-hashes everything under assets/; index.html must always revalidate
+        // or a rebuilt app serves a stale shell pointing at deleted bundles.
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
-      // SPA fallback: unknown non-API GETs get index.html.
-      if (req.method === 'GET' && !req.url.startsWith('/api/')) {
-        return reply.sendFile('index.html');
+      const urlPath = req.url.split('?')[0] ?? '';
+      // SPA fallback for route-like GETs only — a missing file (has an extension,
+      // e.g. an old hashed bundle) must 404, not come back as text/html.
+      if (req.method === 'GET' && !urlPath.startsWith('/api/') && !/\.[a-z0-9]+$/i.test(urlPath)) {
+        return reply.header('Cache-Control', 'no-cache').sendFile('index.html');
       }
       return reply.code(404).send({ error: 'Not found' });
     });
