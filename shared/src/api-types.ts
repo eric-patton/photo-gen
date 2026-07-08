@@ -45,6 +45,12 @@ export const projectUpsertSchema = z.object({
   description: z.string().max(4000).default(''),
 });
 
+export const projectPatchSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(4000).optional(),
+  archived: z.boolean().optional(),
+});
+
 export const folderUpsertSchema = z.object({
   projectId: z.number().int().positive(),
   name: z.string().min(1).max(200),

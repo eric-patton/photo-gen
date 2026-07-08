@@ -5,11 +5,16 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import type {
+  CostSummaryDto,
+  FolderDto,
   GenerateAcceptedDto,
   GenerationDto,
   ImageDetailDto,
   ImagePageDto,
   ProjectDto,
+  ProjectStatsDto,
+  Settings,
+  TagDto,
 } from '@photo-gen/shared';
 import { api } from './client';
 
@@ -101,6 +106,142 @@ export function useGenerate() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['generations'] });
     },
+  });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { name: string; description?: string }) =>
+      api<ProjectDto>('/api/projects', { method: 'POST', body: JSON.stringify(payload) }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['projects'] }),
+  });
+}
+
+export function useProjectStats(projectId: number | undefined) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'stats'],
+    queryFn: () => api<ProjectStatsDto>(`/api/projects/${projectId}/stats`),
+    enabled: projectId !== undefined,
+  });
+}
+
+export function useFolders(projectId: number | undefined) {
+  return useQuery({
+    queryKey: ['folders', projectId],
+    queryFn: () => api<FolderDto[]>(`/api/projects/${projectId}/folders`),
+    enabled: projectId !== undefined,
+  });
+}
+
+export function useCreateFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { projectId: number; name: string }) =>
+      api<FolderDto>('/api/folders', { method: 'POST', body: JSON.stringify(payload) }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['folders'] }),
+  });
+}
+
+export function useTags() {
+  return useQuery({ queryKey: ['tags'], queryFn: () => api<TagDto[]>('/api/tags') });
+}
+
+export function usePatchImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string } & Record<string, unknown>) =>
+      api<ImageDetailDto>(`/api/images/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ['images'] });
+      void queryClient.invalidateQueries({ queryKey: ['images', 'detail', vars.id] });
+    },
+  });
+}
+
+export function useDeleteImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, hard }: { id: string; hard?: boolean }) =>
+      api<void>(`/api/images/${id}${hard ? '?hard=true' : ''}`, { method: 'DELETE' }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['images'] }),
+  });
+}
+
+export function useAddImageTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ imageId, name }: { imageId: string; name: string }) =>
+      api<TagDto>(`/api/images/${imageId}/tags`, { method: 'POST', body: JSON.stringify({ name }) }),
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ['images'] });
+      void queryClient.invalidateQueries({ queryKey: ['images', 'detail', vars.imageId] });
+      void queryClient.invalidateQueries({ queryKey: ['tags'] });
+    },
+  });
+}
+
+export function useRemoveImageTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ imageId, tagId }: { imageId: string; tagId: number }) =>
+      api<void>(`/api/images/${imageId}/tags/${tagId}`, { method: 'DELETE' }),
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ['images'] });
+      void queryClient.invalidateQueries({ queryKey: ['images', 'detail', vars.imageId] });
+      void queryClient.invalidateQueries({ queryKey: ['tags'] });
+    },
+  });
+}
+
+export function useImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      folderId,
+      files,
+    }: {
+      projectId: number;
+      folderId?: number;
+      files: File[];
+    }) => {
+      const form = new FormData();
+      form.set('projectId', String(projectId));
+      if (folderId !== undefined) form.set('folderId', String(folderId));
+      for (const file of files) form.append('files', file);
+      const res = await fetch('/api/import', { method: 'POST', body: form });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Import failed (${res.status})`);
+      }
+      return (await res.json()) as { imported: unknown[]; failed: { filename: string; error: string }[] };
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['images'] }),
+  });
+}
+
+export function useCostSummary(filters: { project?: number; from?: string; to?: string }) {
+  const params = new URLSearchParams();
+  if (filters.project !== undefined) params.set('project', String(filters.project));
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  return useQuery({
+    queryKey: ['costs', filters],
+    queryFn: () => api<CostSummaryDto>(`/api/costs/summary?${params}`),
+  });
+}
+
+export function useSettings() {
+  return useQuery({ queryKey: ['settings'], queryFn: () => api<Settings>('/api/settings') });
+}
+
+export function usePatchSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<Settings>) =>
+      api<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSuccess: (data) => queryClient.setQueryData(['settings'], data),
   });
 }
 

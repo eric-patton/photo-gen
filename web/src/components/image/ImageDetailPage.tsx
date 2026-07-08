@@ -1,12 +1,24 @@
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { GenerationDto } from '@photo-gen/shared';
 import PageHeader from '../layout/PageHeader';
-import { useImageDetail } from '../../api/queries';
+import {
+  useAddImageTag,
+  useDeleteImage,
+  useFolders,
+  useImageDetail,
+  usePatchImage,
+  useRemoveImageTag,
+  useTags,
+} from '../../api/queries';
 import { formatBytes, formatDuration, formatUsd, timeAgo } from '../../lib/format';
 
 export default function ImageDetailPage() {
   const { id } = useParams<{ id: string }>();
   const detail = useImageDetail(id);
+  const patchImage = usePatchImage();
+  const deleteImage = useDeleteImage();
+  const navigate = useNavigate();
 
   if (detail.isLoading) {
     return (
@@ -28,7 +40,35 @@ export default function ImageDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={img.title || 'Untitled image'} />
+      <PageHeader
+        title={img.title || 'Untitled image'}
+        actions={
+          <>
+            <button
+              onClick={() => patchImage.mutate({ id: img.id, starred: !img.starred })}
+              title={img.starred ? 'Unstar' : 'Star'}
+              className={`rounded-md border px-2.5 py-1.5 text-xs ${
+                img.starred
+                  ? 'border-amber-600 bg-amber-950/40 text-amber-300'
+                  : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
+              }`}
+            >
+              ★
+            </button>
+            <button
+              onClick={() => {
+                deleteImage.mutate(
+                  { id: img.id },
+                  { onSuccess: () => navigate('/') },
+                );
+              }}
+              className="rounded-md border border-red-900 px-2.5 py-1.5 text-xs text-red-400 hover:border-red-700"
+            >
+              Delete
+            </button>
+          </>
+        }
+      />
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 items-center justify-center bg-neutral-950 p-6">
           <a href={`/api/images/${img.id}/file`} target="_blank" rel="noreferrer" title="Open full size">
@@ -41,6 +81,8 @@ export default function ImageDetailPage() {
         </div>
 
         <aside className="w-80 shrink-0 space-y-5 overflow-y-auto border-l border-neutral-800 p-4 text-sm">
+          <EditableMeta img={img} />
+
           <Section title="Details">
             <MetaRow label="Source" value={img.source} />
             <MetaRow label="Dimensions" value={`${img.width} × ${img.height}`} />
@@ -49,17 +91,7 @@ export default function ImageDetailPage() {
             <MetaRow label="Created" value={timeAgo(img.createdAt)} />
           </Section>
 
-          {img.tags.length > 0 && (
-            <Section title="Tags">
-              <div className="flex flex-wrap gap-1">
-                {img.tags.map((tag) => (
-                  <span key={tag.id} className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">
-                    {tag.name}
-                  </span>
-                ))}
-              </div>
-            </Section>
-          )}
+          <TagEditor imageId={img.id} tags={img.tags} />
 
           {img.generation && <GenerationSection gen={img.generation} currentImageId={img.id} />}
 
@@ -72,7 +104,11 @@ export default function ImageDetailPage() {
                     <div className="mt-1 flex flex-wrap gap-1">
                       {gen.outputImageIds.map((outId) => (
                         <Link key={outId} to={`/images/${outId}`}>
-                          <img src={`/api/images/${outId}/thumb`} alt="" className="h-10 w-10 rounded object-cover hover:opacity-80" />
+                          <img
+                            src={`/api/images/${outId}/thumb`}
+                            alt=""
+                            className="h-10 w-10 rounded object-cover hover:opacity-80"
+                          />
                         </Link>
                       ))}
                     </div>
@@ -84,6 +120,124 @@ export default function ImageDetailPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function EditableMeta({
+  img,
+}: {
+  img: { id: string; projectId: number; folderId: number | null; title: string; notes: string };
+}) {
+  const patchImage = usePatchImage();
+  const folders = useFolders(img.projectId);
+  const [title, setTitle] = useState(img.title);
+  const [notes, setNotes] = useState(img.notes);
+
+  useEffect(() => {
+    setTitle(img.title);
+    setNotes(img.notes);
+  }, [img.id, img.title, img.notes]);
+
+  const commit = () => {
+    if (title !== img.title || notes !== img.notes) {
+      patchImage.mutate({ id: img.id, title, notes });
+    }
+  };
+
+  return (
+    <Section title="Title & notes">
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={commit}
+        placeholder="Title"
+        className="mb-1.5 w-full rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-xs"
+      />
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        onBlur={commit}
+        placeholder="Notes"
+        rows={2}
+        className="w-full rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-xs"
+      />
+      {(folders.data?.length ?? 0) > 0 && (
+        <select
+          value={img.folderId ?? ''}
+          onChange={(e) =>
+            patchImage.mutate({
+              id: img.id,
+              folderId: e.target.value ? Number(e.target.value) : null,
+            })
+          }
+          className="mt-1.5 w-full rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-xs"
+        >
+          <option value="">No folder</option>
+          {(folders.data ?? []).map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </Section>
+  );
+}
+
+function TagEditor({ imageId, tags }: { imageId: string; tags: { id: number; name: string }[] }) {
+  const addTag = useAddImageTag();
+  const removeTag = useRemoveImageTag();
+  const allTags = useTags();
+  const [name, setName] = useState('');
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    addTag.mutate({ imageId, name: trimmed }, { onSuccess: () => setName('') });
+  };
+
+  return (
+    <Section title="Tags">
+      <div className="flex flex-wrap gap-1">
+        {tags.map((tag) => (
+          <span
+            key={tag.id}
+            className="group flex items-center gap-1 rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300"
+          >
+            {tag.name}
+            <button
+              onClick={() => removeTag.mutate({ imageId, tagId: tag.id })}
+              className="text-neutral-500 hover:text-red-400"
+              title="Remove tag"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="mt-1.5 flex gap-1">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          list="all-tags"
+          placeholder="Add tag…"
+          className="w-full rounded border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs"
+        />
+        <datalist id="all-tags">
+          {(allTags.data ?? []).map((t) => (
+            <option key={t.id} value={t.name} />
+          ))}
+        </datalist>
+        <button
+          onClick={submit}
+          disabled={!name.trim()}
+          className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+        >
+          Add
+        </button>
+      </div>
+    </Section>
   );
 }
 
@@ -122,7 +276,11 @@ function GenerationSection({ gen, currentImageId }: { gen: GenerationDto; curren
                 title={input.role}
                 className="relative"
               >
-                <img src={`/api/images/${input.imageId}/thumb`} alt={input.role} className="h-12 w-12 rounded object-cover hover:opacity-80" />
+                <img
+                  src={`/api/images/${input.imageId}/thumb`}
+                  alt={input.role}
+                  className="h-12 w-12 rounded object-cover hover:opacity-80"
+                />
                 <span className="absolute bottom-0 left-0 right-0 rounded-b bg-black/70 text-center text-[9px] text-neutral-300">
                   {input.role}
                 </span>
@@ -137,7 +295,11 @@ function GenerationSection({ gen, currentImageId }: { gen: GenerationDto; curren
           <div className="flex flex-wrap gap-1.5">
             {siblings.map((outId) => (
               <Link key={outId} to={`/images/${outId}`}>
-                <img src={`/api/images/${outId}/thumb`} alt="" className="h-12 w-12 rounded object-cover hover:opacity-80" />
+                <img
+                  src={`/api/images/${outId}/thumb`}
+                  alt=""
+                  className="h-12 w-12 rounded object-cover hover:opacity-80"
+                />
               </Link>
             ))}
           </div>

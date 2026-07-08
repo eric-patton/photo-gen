@@ -8,6 +8,11 @@ import { registerGenerationRoutes } from './routes/generations';
 import { registerImageRoutes } from './routes/images';
 import { registerEventRoutes } from './routes/events';
 import { registerProjectRoutes } from './routes/projects';
+import { registerFolderRoutes } from './routes/folders';
+import { registerTagRoutes } from './routes/tags';
+import { registerImportRoutes } from './routes/import';
+import { registerCostRoutes } from './routes/costs';
+import { registerSettingsRoutes } from './routes/settings';
 
 export interface AppOptions {
   serveStatic: boolean;
@@ -44,9 +49,14 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   app.get('/api/health', async () => ({ ok: true, name: 'photo-gen', version: '0.1.0' }));
 
   registerProjectRoutes(app);
+  registerFolderRoutes(app);
+  registerTagRoutes(app);
   registerGenerateRoutes(app);
   registerGenerationRoutes(app);
   registerImageRoutes(app);
+  registerImportRoutes(app);
+  registerCostRoutes(app);
+  registerSettingsRoutes(app);
   registerEventRoutes(app);
 
   if (opts.serveStatic) {

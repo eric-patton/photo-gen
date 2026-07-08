@@ -1,25 +1,25 @@
 import { useMemo, useState } from 'react';
 import { estimateCost, SIZE_PRESETS, validateSize, type Quality } from '@photo-gen/shared';
 import PageHeader from '../layout/PageHeader';
-import { useGenerate, useProjects } from '../../api/queries';
+import { useFolders, useGenerate } from '../../api/queries';
+import { useAppStore } from '../../stores/appStore';
 import { formatUsd } from '../../lib/format';
 import GenerationList from './GenerationList';
 
 const QUALITIES: Quality[] = ['low', 'medium', 'high', 'auto'];
 
 export default function GeneratePage() {
-  const projects = useProjects();
   const generate = useGenerate();
+  const effectiveProjectId = useAppStore((s) => s.currentProjectId);
+  const folders = useFolders(effectiveProjectId ?? undefined);
 
-  const [projectId, setProjectId] = useState<number | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [folderId, setFolderId] = useState<number | undefined>(undefined);
   const [sizeChoice, setSizeChoice] = useState('auto');
   const [customW, setCustomW] = useState('1024');
   const [customH, setCustomH] = useState('1024');
   const [quality, setQuality] = useState<Quality>('auto');
   const [n, setN] = useState(1);
-
-  const effectiveProjectId = projectId ?? projects.data?.[0]?.id ?? null;
   const size = sizeChoice === 'custom' ? `${customW}x${customH}` : sizeChoice;
   const sizeCheck = useMemo(() => validateSize(size), [size]);
   const estimate = useMemo(
@@ -33,7 +33,7 @@ export default function GeneratePage() {
   const submit = () => {
     if (!canSubmit || !effectiveProjectId) return;
     generate.mutate(
-      { projectId: effectiveProjectId, prompt: prompt.trim(), size, quality, n },
+      { projectId: effectiveProjectId, folderId, prompt: prompt.trim(), size, quality, n },
       { onSuccess: () => generate.reset() },
     );
   };
@@ -60,19 +60,22 @@ export default function GeneratePage() {
           </div>
 
           <div className="flex flex-wrap items-end gap-4">
-            <Field label="Project">
-              <select
-                value={effectiveProjectId ?? ''}
-                onChange={(e) => setProjectId(Number(e.target.value))}
-                className="rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-sm"
-              >
-                {(projects.data ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {(folders.data?.length ?? 0) > 0 && (
+              <Field label="Folder">
+                <select
+                  value={folderId ?? ''}
+                  onChange={(e) => setFolderId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-sm"
+                >
+                  <option value="">Project root</option>
+                  {(folders.data ?? []).map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
 
             <Field label="Size">
               <select
