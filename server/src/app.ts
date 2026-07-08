@@ -1,7 +1,13 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
+import { ZodError } from 'zod';
 import { WEB_DIST } from './config';
+import { registerGenerateRoutes } from './routes/generate';
+import { registerGenerationRoutes } from './routes/generations';
+import { registerImageRoutes } from './routes/images';
+import { registerEventRoutes } from './routes/events';
+import { registerProjectRoutes } from './routes/projects';
 
 export interface AppOptions {
   serveStatic: boolean;
@@ -22,7 +28,26 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     limits: { fileSize: 100 * 1024 * 1024, files: 32 },
   });
 
+  app.setErrorHandler((err, req, reply) => {
+    if (err instanceof ZodError) {
+      return reply.code(400).send({
+        error: 'Validation failed',
+        issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      });
+    }
+    req.log.error(err);
+    const e = err as { statusCode?: number; message?: string };
+    const status = e.statusCode && e.statusCode >= 400 ? e.statusCode : 500;
+    return reply.code(status).send({ error: e.message ?? 'Internal server error' });
+  });
+
   app.get('/api/health', async () => ({ ok: true, name: 'photo-gen', version: '0.1.0' }));
+
+  registerProjectRoutes(app);
+  registerGenerateRoutes(app);
+  registerGenerationRoutes(app);
+  registerImageRoutes(app);
+  registerEventRoutes(app);
 
   if (opts.serveStatic) {
     await app.register(fastifyStatic, { root: WEB_DIST, wildcard: false });

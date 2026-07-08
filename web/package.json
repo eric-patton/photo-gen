@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@photo-gen/shared": "^0.1.0",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-virtual": "^3.14.5",
     "react": "^19.2.7",

@@ -191,6 +191,11 @@ export interface GenerationDto {
   outputImageIds: string[];
 }
 
+export interface ImagePageDto {
+  items: ImageDto[];
+  nextCursor: string | null;
+}
+
 export interface ImageDetailDto extends ImageDto {
   filePath: string;
   generation: GenerationDto | null;
