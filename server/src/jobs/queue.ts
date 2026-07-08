@@ -282,11 +282,20 @@ async function persistOutputs(
 }
 
 function computeActualCost(usage: unknown): number | null {
-  const rate = getSettings().outputTokenPriceUsd;
-  if (rate <= 0 || !usage || typeof usage !== 'object') return null;
-  const u = usage as { output_tokens?: number };
+  const settings = getSettings();
+  if (settings.outputTokenPriceUsd <= 0 || !usage || typeof usage !== 'object') return null;
+  const u = usage as {
+    output_tokens?: number;
+    input_tokens_details?: { text_tokens?: number; image_tokens?: number };
+  };
   if (typeof u.output_tokens !== 'number') return null;
-  return u.output_tokens * rate;
+  const textIn = u.input_tokens_details?.text_tokens ?? 0;
+  const imageIn = u.input_tokens_details?.image_tokens ?? 0;
+  return (
+    textIn * settings.textInputTokenPriceUsd +
+    imageIn * settings.imageInputTokenPriceUsd +
+    u.output_tokens * settings.outputTokenPriceUsd
+  );
 }
 
 function markCanceled(generationId: number, durationMs?: number): void {

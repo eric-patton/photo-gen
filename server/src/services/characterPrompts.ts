@@ -27,8 +27,19 @@ export const DEFAULT_SLOTS: { slot: string; label: string; angleClause: string; 
     angleClause: 'in three-quarter view, body turned 45 degrees to the left',
     sortOrder: 1,
   },
-  { slot: 'side', label: 'Side', angleClause: 'in full profile side view, facing left', sortOrder: 2 },
-  { slot: 'back', label: 'Back', angleClause: 'viewed directly from behind', sortOrder: 3 },
+  {
+    slot: 'side_left',
+    label: 'Side (left)',
+    angleClause: 'in full profile side view, facing left, showing the left side of the body',
+    sortOrder: 2,
+  },
+  {
+    slot: 'side_right',
+    label: 'Side (right)',
+    angleClause: 'in full profile side view, facing right, showing the right side of the body',
+    sortOrder: 3,
+  },
+  { slot: 'back', label: 'Back', angleClause: 'viewed directly from behind', sortOrder: 4 },
 ];
 
 const MAX_VIEW_REFS = 4;

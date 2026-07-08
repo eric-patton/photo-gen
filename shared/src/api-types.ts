@@ -98,6 +98,8 @@ export const settingsPatchSchema = z
     moderation: moderationSchema,
     queueConcurrency: z.number().int().min(1).max(8),
     partialImages: z.number().int().min(0).max(3),
+    textInputTokenPriceUsd: z.number().min(0),
+    imageInputTokenPriceUsd: z.number().min(0),
     outputTokenPriceUsd: z.number().min(0),
   })
   .partial();
@@ -110,9 +112,11 @@ export const DEFAULT_SETTINGS: Settings = {
   moderation: 'auto',
   queueConcurrency: 2,
   partialImages: 2,
-  // USD per image output token; 0 disables cost_actual computation.
-  // Editable in settings — see plan risk #2 (rate not published at build time).
-  outputTokenPriceUsd: 0,
+  // gpt-image-2 published prices per 1M tokens: text in $5, image in $8, output $30.
+  // Setting the output rate to 0 disables cost_actual computation.
+  textInputTokenPriceUsd: 5 / 1_000_000,
+  imageInputTokenPriceUsd: 8 / 1_000_000,
+  outputTokenPriceUsd: 30 / 1_000_000,
 };
 
 // ---------- DTOs (server -> client) ----------

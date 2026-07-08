@@ -126,20 +126,55 @@ export default function SettingsPage() {
         </Row>
 
         <Row
-          label="Output token price (USD)"
-          hint="Per image-output token, from OpenAI's pricing page. Enables exact per-generation costs from usage data; 0 keeps size/quality estimates."
+          label="Token prices (USD per 1M tokens)"
+          hint="From OpenAI's pricing page for gpt-image-2 — text input $5, image input $8, output $30. Used to compute exact per-generation costs from usage data; set output to 0 to fall back to size/quality estimates."
         >
-          <input
-            type="number"
-            min={0}
-            step="0.000001"
-            value={draft.outputTokenPriceUsd}
-            onChange={(e) => set('outputTokenPriceUsd', Math.max(0, Number(e.target.value) || 0))}
-            className="w-36 rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-xs"
-          />
+          <div className="flex flex-wrap gap-3">
+            <PriceInput
+              label="Text in"
+              value={draft.textInputTokenPriceUsd}
+              onChange={(v) => set('textInputTokenPriceUsd', v)}
+            />
+            <PriceInput
+              label="Image in"
+              value={draft.imageInputTokenPriceUsd}
+              onChange={(v) => set('imageInputTokenPriceUsd', v)}
+            />
+            <PriceInput
+              label="Output"
+              value={draft.outputTokenPriceUsd}
+              onChange={(v) => set('outputTokenPriceUsd', v)}
+            />
+          </div>
         </Row>
       </div>
     </div>
+  );
+}
+
+/** Edits a per-token USD rate, displayed as dollars per 1M tokens. */
+function PriceInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (perTokenUsd: number) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-neutral-400">
+      {label}
+      <span className="text-neutral-600">$</span>
+      <input
+        type="number"
+        min={0}
+        step="0.25"
+        value={Math.round(value * 1_000_000 * 100) / 100}
+        onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0) / 1_000_000)}
+        className="w-20 rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-xs"
+      />
+    </label>
   );
 }
 
