@@ -129,6 +129,7 @@ export const improvePromptRequestSchema = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('generation'),
     prompt: z.string().min(1).max(32_000),
+    projectId: z.number().int().positive().optional(),
     speed: improveSpeedSchema.default('fast'),
     effort: improveEffortSchema.default('medium'),
   }),
@@ -139,6 +140,7 @@ export const improvePromptRequestSchema = z.discriminatedUnion('mode', [
       description: z.string().max(8_000).default(''),
       styleNotes: z.string().max(4_000).default(''),
     }),
+    projectId: z.number().int().positive().optional(),
     speed: improveSpeedSchema.default('fast'),
     effort: improveEffortSchema.default('medium'),
   }),
@@ -151,6 +153,8 @@ export interface ImproveGenerationResultDto {
   notes: string;
   model: string;
   costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
 }
 
 export interface ImproveCharacterResultDto {
@@ -160,9 +164,24 @@ export interface ImproveCharacterResultDto {
   notes: string;
   model: string;
   costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
 }
 
 export type ImproveResultDto = ImproveGenerationResultDto | ImproveCharacterResultDto;
+
+export interface ImprovementDto {
+  id: number;
+  projectId: number | null;
+  mode: 'generation' | 'character';
+  model: string;
+  speed: 'fast' | 'smart';
+  effort: ImproveEffort;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costUsd: number | null;
+  createdAt: string;
+}
 
 // ---------- DTOs (server -> client) ----------
 
@@ -279,7 +298,11 @@ export interface CharacterDto {
 }
 
 export interface CostSummaryDto {
+  /** Combined spend: image generations + prompt improvements. */
   total: number;
+  imagesTotal: number;
+  improveTotal: number;
+  improveCount: number;
   byProject: { projectId: number; projectName: string; total: number }[];
   byDay: { day: string; total: number }[];
   byQuality: { quality: string; total: number; count: number }[];

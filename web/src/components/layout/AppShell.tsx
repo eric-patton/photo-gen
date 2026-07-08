@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../api/client';
-import { useCreateProject, useGenerations, useProjects } from '../../api/queries';
+import { ApiError, api } from '../../api/client';
+import { useCreateProject, useDeleteProject, useGenerations, useProjects } from '../../api/queries';
 import { useAppStore } from '../../stores/appStore';
 
 const NAV_ITEMS = [
@@ -53,6 +53,7 @@ export default function AppShell() {
 function ProjectSwitcher() {
   const projects = useProjects();
   const createProject = useCreateProject();
+  const deleteProject = useDeleteProject();
   const { currentProjectId, setCurrentProject } = useAppStore();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -77,6 +78,32 @@ function ProjectSwitcher() {
           setCurrentProject(project.id);
           setName('');
           setCreating(false);
+        },
+      },
+    );
+  };
+
+  const removeCurrent = () => {
+    const project = list.find((p) => p.id === currentProjectId);
+    if (!project) return;
+    if (!confirm(`Delete project '${project.name}'?`)) return;
+    const selectNext = () => {
+      const remaining = list.filter((p) => p.id !== project.id);
+      setCurrentProject(remaining[0]?.id ?? null);
+    };
+    deleteProject.mutate(
+      { id: project.id },
+      {
+        onSuccess: selectNext,
+        onError: (err) => {
+          // Non-empty projects 409 with the counts; force archives + soft-deletes.
+          if (err instanceof ApiError && err.status === 409) {
+            if (confirm(`${err.message}\n\nArchive '${project.name}' and soft-delete its images?`)) {
+              deleteProject.mutate({ id: project.id, force: true }, { onSuccess: selectNext });
+            }
+          } else {
+            alert(`Delete failed: ${err.message}`);
+          }
         },
       },
     );
@@ -126,6 +153,14 @@ function ProjectSwitcher() {
             className="rounded border border-neutral-800 px-2 text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
           >
             +
+          </button>
+          <button
+            onClick={removeCurrent}
+            disabled={currentProjectId === null || deleteProject.isPending}
+            title="Delete current project"
+            className="rounded border border-neutral-800 px-1.5 text-xs text-neutral-500 hover:border-red-800 hover:text-red-400 disabled:opacity-40"
+          >
+            🗑
           </button>
         </div>
       )}

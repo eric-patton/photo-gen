@@ -4,6 +4,7 @@ import {
   type ImprovePromptRequest,
   type ImproveResultDto,
 } from '@photo-gen/shared';
+import { getDb } from '../db/db';
 import { getOpenAIClient } from './openaiImages';
 
 const GENERATION_INSTRUCTIONS = `You are an expert prompt engineer for the gpt-image-2 image generation model, working on game development art (concept art, game assets, characters, environments, props, icons).
@@ -46,13 +47,15 @@ export async function improvePrompt(req: ImprovePromptRequest): Promise<ImproveR
 
   const text = res.output_text ?? '';
   const usage = res.usage;
+  const inputTokens = typeof usage?.input_tokens === 'number' ? usage.input_tokens : null;
+  const outputTokens = typeof usage?.output_tokens === 'number' ? usage.output_tokens : null;
   const costUsd =
-    usage && typeof usage.input_tokens === 'number' && typeof usage.output_tokens === 'number'
-      ? estimateTextCost(req.speed, {
-          inputTokens: usage.input_tokens,
-          outputTokens: usage.output_tokens,
-        })
+    inputTokens != null && outputTokens != null
+      ? estimateTextCost(req.speed, { inputTokens, outputTokens })
       : null;
+
+  // Record spend before parsing — the tokens are billed even if the suggestion is unusable.
+  recordImprovement(req, model.id, inputTokens, outputTokens, costUsd);
 
   if (req.mode === 'generation') {
     const parsed = parseJson<{ improvedPrompt?: string; notes?: string }>(text);
@@ -63,6 +66,8 @@ export async function improvePrompt(req: ImprovePromptRequest): Promise<ImproveR
       notes: parsed?.notes?.trim() ?? '',
       model: model.id,
       costUsd,
+      inputTokens,
+      outputTokens,
     };
   }
 
@@ -79,7 +84,28 @@ export async function improvePrompt(req: ImprovePromptRequest): Promise<ImproveR
     notes: parsed.notes?.trim() ?? '',
     model: model.id,
     costUsd,
+    inputTokens,
+    outputTokens,
   };
+}
+
+function recordImprovement(
+  req: ImprovePromptRequest,
+  modelId: string,
+  inputTokens: number | null,
+  outputTokens: number | null,
+  costUsd: number | null,
+): void {
+  const db = getDb();
+  // Guard the FK: a stale client tab can send a projectId that no longer exists.
+  const projectId =
+    req.projectId != null && db.prepare('SELECT id FROM projects WHERE id = ?').get(req.projectId)
+      ? req.projectId
+      : null;
+  db.prepare(
+    `INSERT INTO improvements (project_id, mode, model, speed, effort, input_tokens, output_tokens, cost_usd)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(projectId, req.mode, modelId, req.speed, req.effort, inputTokens, outputTokens, costUsd);
 }
 
 function parseJson<T>(text: string): T | null {

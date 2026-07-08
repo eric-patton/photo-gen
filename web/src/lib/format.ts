@@ -5,7 +5,8 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatUsd(amount: number): string {
-  return `$${amount.toFixed(amount < 0.1 ? 3 : 2)}`;
+  if (amount === 0) return '$0.00';
+  return `$${amount.toFixed(amount < 0.01 ? 4 : amount < 0.1 ? 3 : 2)}`;
 }
 
 export function formatDuration(ms: number): string {

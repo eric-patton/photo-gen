@@ -13,6 +13,7 @@ import type {
   GenerationDto,
   ImageDetailDto,
   ImagePageDto,
+  ImprovementDto,
   ProjectDto,
   ProjectStatsDto,
   Settings,
@@ -244,6 +245,23 @@ export function useCreateProject() {
   });
 }
 
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, force }: { id: number; force?: boolean }) =>
+      api<void>(`/api/projects/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      // A project takes its images, folders, characters, and generations with it.
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['images'] });
+      void queryClient.invalidateQueries({ queryKey: ['folders'] });
+      void queryClient.invalidateQueries({ queryKey: ['characters'] });
+      void queryClient.invalidateQueries({ queryKey: ['generations'] });
+      void queryClient.invalidateQueries({ queryKey: ['costs'] });
+    },
+  });
+}
+
 export function useProjectStats(projectId: number | undefined) {
   return useQuery({
     queryKey: ['projects', projectId, 'stats'],
@@ -355,6 +373,16 @@ export function useCostSummary(filters: { project?: number; from?: string; to?: 
   return useQuery({
     queryKey: ['costs', filters],
     queryFn: () => api<CostSummaryDto>(`/api/costs/summary?${params}`),
+  });
+}
+
+export function useImprovements(filters: { project?: number; limit?: number }) {
+  const params = new URLSearchParams();
+  if (filters.project !== undefined) params.set('project', String(filters.project));
+  if (filters.limit) params.set('limit', String(filters.limit));
+  return useQuery({
+    queryKey: ['improvements', filters],
+    queryFn: () => api<ImprovementDto[]>(`/api/improvements?${params}`),
   });
 }
 

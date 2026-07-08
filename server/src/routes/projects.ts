@@ -6,6 +6,7 @@ import {
   type ProjectStatsDto,
 } from '@photo-gen/shared';
 import { getDb } from '../db/db';
+import { deleteImageFiles } from '../services/library';
 
 interface ProjectRow {
   id: number;
@@ -78,18 +79,28 @@ export function registerProjectRoutes(app: FastifyInstance): void {
       const genCount = (
         db.prepare('SELECT COUNT(*) AS c FROM generations WHERE project_id = ?').get(id) as { c: number }
       ).c;
+      let conflict = `Project has ${imageCount} image(s) and ${genCount} generation(s). Use ?force=true to archive it and soft-delete its images.`;
       if (imageCount === 0 && genCount === 0) {
-        db.transaction(() => {
-          db.prepare('DELETE FROM folders WHERE project_id = ?').run(id);
-          db.prepare('DELETE FROM characters WHERE project_id = ?').run(id);
-          db.prepare('DELETE FROM projects WHERE id = ?').run(id);
-        })();
-        return reply.code(204).send();
+        // Only trashed (soft-deleted) images can remain; they go with the project.
+        const trashed = db
+          .prepare('SELECT file_path, thumb_path FROM images WHERE project_id = ?')
+          .all(id) as { file_path: string; thumb_path: string | null }[];
+        try {
+          db.transaction(() => {
+            db.prepare('DELETE FROM images WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM folders WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM characters WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+          })();
+          for (const img of trashed) deleteImageFiles(img.file_path, img.thumb_path);
+          return reply.code(204).send();
+        } catch {
+          // A trashed image is still referenced from another project's lineage; fall through to archive.
+          conflict = `A trashed image in this project is referenced by other generations. Use ?force=true to archive the project instead.`;
+        }
       }
       if (req.query.force !== 'true') {
-        return reply.code(409).send({
-          error: `Project has ${imageCount} image(s) and ${genCount} generation(s). Use ?force=true to archive it and soft-delete its images.`,
-        });
+        return reply.code(409).send({ error: conflict });
       }
       db.transaction(() => {
         db.prepare(
@@ -119,14 +130,19 @@ export function registerProjectRoutes(app: FastifyInstance): void {
         db.prepare('SELECT COUNT(*) AS c FROM generations WHERE project_id = ?').get(id) as { c: number }
       ).c,
       costTotal:
-        (
+        ((
           db
             .prepare(
               `SELECT SUM(COALESCE(cost_actual, cost_estimated)) AS total FROM generations
                WHERE project_id = ? AND status = 'succeeded'`,
             )
             .get(id) as { total: number | null }
-        ).total ?? 0,
+        ).total ?? 0) +
+        ((
+          db
+            .prepare(`SELECT SUM(COALESCE(cost_usd, 0)) AS total FROM improvements WHERE project_id = ?`)
+            .get(id) as { total: number | null }
+        ).total ?? 0),
     };
     return stats;
   });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   ImproveEffort,
   ImprovePromptRequest,
@@ -8,6 +8,7 @@ import type {
 } from '@photo-gen/shared';
 import { IMPROVER_MODELS } from '@photo-gen/shared';
 import { api } from '../../api/client';
+import { useAppStore } from '../../stores/appStore';
 
 const EFFORTS: ImproveEffort[] = ['none', 'low', 'medium', 'high', 'xhigh'];
 
@@ -28,6 +29,8 @@ export default function PromptImprover(props: Props) {
   const [speed, setSpeed] = useState<ImproveSpeed>('fast');
   const [effort, setEffort] = useState<ImproveEffort>('medium');
   const [result, setResult] = useState<ImproveResultDto | null>(null);
+  const projectId = useAppStore((s) => s.currentProjectId);
+  const queryClient = useQueryClient();
 
   const improve = useMutation({
     mutationFn: (payload: ImprovePromptRequest) =>
@@ -36,6 +39,11 @@ export default function PromptImprover(props: Props) {
         body: JSON.stringify(payload),
       }),
     onSuccess: setResult,
+    onSettled: () => {
+      // Spend is recorded server-side even when the suggestion fails to parse.
+      void queryClient.invalidateQueries({ queryKey: ['costs'] });
+      void queryClient.invalidateQueries({ queryKey: ['improvements'] });
+    },
   });
 
   const hasInput =
@@ -48,8 +56,8 @@ export default function PromptImprover(props: Props) {
     setResult(null);
     improve.mutate(
       props.mode === 'generation'
-        ? { mode: 'generation', prompt: props.prompt.trim(), speed, effort }
-        : { mode: 'character', character: props.character, speed, effort },
+        ? { mode: 'generation', prompt: props.prompt.trim(), projectId: projectId ?? undefined, speed, effort }
+        : { mode: 'character', character: props.character, projectId: projectId ?? undefined, speed, effort },
     );
   };
 

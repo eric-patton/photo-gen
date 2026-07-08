@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import PageHeader from '../layout/PageHeader';
-import { useCostSummary, useGenerations, useProjects } from '../../api/queries';
+import { useCostSummary, useGenerations, useImprovements, useProjects } from '../../api/queries';
 import { formatDuration, formatUsd, timeAgo } from '../../lib/format';
 
 export default function CostsPage() {
@@ -8,6 +8,7 @@ export default function CostsPage() {
   const [projectFilter, setProjectFilter] = useState<number | undefined>(undefined);
   const summary = useCostSummary({ project: projectFilter });
   const recent = useGenerations({ project: projectFilter, limit: 25 });
+  const improvements = useImprovements({ project: projectFilter, limit: 25 });
 
   const data = summary.data;
 
@@ -33,6 +34,11 @@ export default function CostsPage() {
       <div className="max-w-5xl space-y-6 p-6">
         <div className="flex flex-wrap gap-4">
           <StatCard label="Total spend" value={formatUsd(data?.total ?? 0)} />
+          <StatCard label="Images" value={formatUsd(data?.imagesTotal ?? 0)} />
+          <StatCard
+            label={`Prompt improvements × ${data?.improveCount ?? 0}`}
+            value={formatUsd(data?.improveTotal ?? 0)}
+          />
           {(data?.byQuality ?? []).map((q) => (
             <StatCard
               key={q.quality ?? 'auto'}
@@ -107,6 +113,46 @@ export default function CostsPage() {
             </tbody>
           </table>
         </section>
+
+        {(improvements.data?.length ?? 0) > 0 && (
+          <section>
+            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+              Recent prompt improvements
+            </h2>
+            <table className="w-full max-w-2xl text-left text-xs">
+              <thead>
+                <tr className="border-b border-neutral-800 text-neutral-500">
+                  <th className="py-1.5 font-medium">Mode</th>
+                  <th className="py-1.5 font-medium">Model</th>
+                  <th className="py-1.5 font-medium">Effort</th>
+                  <th className="py-1.5 text-right font-medium">Tokens in / out</th>
+                  <th className="py-1.5 text-right font-medium">Cost</th>
+                  <th className="py-1.5 text-right font-medium">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(improvements.data ?? []).map((imp) => (
+                  <tr key={imp.id} className="border-b border-neutral-900">
+                    <td className="py-1.5 pr-3 text-neutral-300">
+                      {imp.mode === 'generation' ? 'prompt' : 'character'}
+                    </td>
+                    <td className="py-1.5 pr-3 text-neutral-400">{imp.model}</td>
+                    <td className="py-1.5 pr-3 text-neutral-500">{imp.effort}</td>
+                    <td className="py-1.5 text-right text-neutral-500">
+                      {imp.inputTokens != null && imp.outputTokens != null
+                        ? `${imp.inputTokens} / ${imp.outputTokens}`
+                        : '—'}
+                    </td>
+                    <td className="py-1.5 text-right text-neutral-300">
+                      {imp.costUsd != null ? formatUsd(imp.costUsd) : '—'}
+                    </td>
+                    <td className="py-1.5 text-right text-neutral-500">{timeAgo(imp.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
       </div>
     </div>
   );
