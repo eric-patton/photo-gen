@@ -50,6 +50,8 @@ function handle(queryClient: QueryClient, event: SseEvent): void {
     case 'generation:succeeded':
       void queryClient.invalidateQueries({ queryKey: ['images'] });
       void queryClient.invalidateQueries({ queryKey: ['costs'] });
+      // Promotes can auto-approve into a character view slot.
+      void queryClient.invalidateQueries({ queryKey: ['characters'] });
       break;
     default:
       break;

@@ -3,6 +3,7 @@ import type { GenerationDto } from '@photo-gen/shared';
 import PageHeader from '../layout/PageHeader';
 import { useGenerate, useGenerationDetail } from '../../api/queries';
 import { formatDuration, formatUsd, timeAgo } from '../../lib/format';
+import { promotePayload } from '../../lib/promote';
 
 /** Batch compare grid: all candidates of one generation side by side. */
 export default function GenerationDetailPage() {
@@ -57,17 +58,6 @@ export default function GenerationDetailPage() {
 function CandidateCard({ imageId, gen }: { imageId: string; gen: GenerationDto }) {
   const generate = useGenerate();
 
-  const promote = () => {
-    generate.mutate({
-      projectId: gen.projectId,
-      prompt: `${gen.userPrompt}. Keep the composition, subject, and colors of the base image identical; increase detail, sharpness, and rendering quality.`,
-      size: gen.params.size,
-      quality: 'high',
-      n: 1,
-      promoteFromImageId: imageId,
-    });
-  };
-
   return (
     <div className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/60">
       <Link to={`/images/${imageId}`}>
@@ -78,10 +68,14 @@ function CandidateCard({ imageId, gen }: { imageId: string; gen: GenerationDto }
           Open
         </Link>
         <button
-          onClick={promote}
+          onClick={() => generate.mutate(promotePayload(gen, imageId))}
           disabled={generate.isPending}
           className="rounded bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:bg-neutral-800"
-          title="Re-run at high quality with this image as the base"
+          title={
+            gen.characterViewId != null
+              ? 'Re-run at high quality; the result replaces the approved image for its character view'
+              : 'Re-run at high quality with this image as the base'
+          }
         >
           {generate.isSuccess ? 'Promoting…' : 'Promote to high'}
         </button>

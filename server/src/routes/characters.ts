@@ -113,8 +113,18 @@ export function registerCharacterRoutes(app: FastifyInstance): void {
   });
 
   app.delete<{ Params: { id: string } }>('/api/characters/:id', async (req, reply) => {
-    const result = getDb().prepare('DELETE FROM characters WHERE id = ?').run(Number(req.params.id));
-    if (result.changes === 0) return reply.code(404).send({ error: 'Character not found' });
+    const id = Number(req.params.id);
+    const db = getDb();
+    let changes = 0;
+    db.transaction(() => {
+      // Generations keep their history but drop the view link (FK is NO ACTION).
+      db.prepare(
+        `UPDATE generations SET character_view_id = NULL
+         WHERE character_view_id IN (SELECT id FROM character_views WHERE character_id = ?)`,
+      ).run(id);
+      changes = db.prepare('DELETE FROM characters WHERE id = ?').run(id).changes;
+    })();
+    if (changes === 0) return reply.code(404).send({ error: 'Character not found' });
     return reply.code(204).send();
   });
 
@@ -147,10 +157,14 @@ export function registerCharacterRoutes(app: FastifyInstance): void {
   });
 
   app.delete<{ Params: { id: string } }>('/api/character-views/:id', async (req, reply) => {
-    const result = getDb()
-      .prepare('DELETE FROM character_views WHERE id = ?')
-      .run(Number(req.params.id));
-    if (result.changes === 0) return reply.code(404).send({ error: 'View not found' });
+    const id = Number(req.params.id);
+    const db = getDb();
+    let changes = 0;
+    db.transaction(() => {
+      db.prepare('UPDATE generations SET character_view_id = NULL WHERE character_view_id = ?').run(id);
+      changes = db.prepare('DELETE FROM character_views WHERE id = ?').run(id).changes;
+    })();
+    if (changes === 0) return reply.code(404).send({ error: 'View not found' });
     return reply.code(204).send();
   });
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { estimateCost } from '@photo-gen/shared';
 import type { CharacterDto, CharacterViewDto, GenerationDto } from '@photo-gen/shared';
 import PageHeader from '../layout/PageHeader';
 import {
@@ -8,11 +9,13 @@ import {
   useCreateView,
   useDeleteCharacter,
   useDeleteView,
+  useGenerate,
   useGenerateView,
   useGenerations,
   usePatchCharacter,
 } from '../../api/queries';
 import { formatUsd } from '../../lib/format';
+import { promotePayload } from '../../lib/promote';
 import PromptImprover from '../common/PromptImprover';
 
 export default function CharacterBoardPage() {
@@ -219,19 +222,24 @@ function ViewSlotCard({
   const generateView = useGenerateView();
   const approveView = useApproveView();
   const deleteView = useDeleteView();
+  const promote = useGenerate();
   const [extraPrompt, setExtraPrompt] = useState('');
   const [quality, setQuality] = useState('medium');
   const [n, setN] = useState(1);
 
   const active = generations.filter((g) => g.status === 'queued' || g.status === 'running');
+  const busy = active.length > 0 || promote.isPending;
   const candidates = useMemo(
     () =>
       generations
         .filter((g) => g.status === 'succeeded')
-        .flatMap((g) => g.outputImageIds)
-        .filter((imgId) => imgId !== view.approvedImageId),
+        .flatMap((g) => g.outputImageIds.map((imgId) => ({ imgId, gen: g })))
+        .filter((c) => c.imgId !== view.approvedImageId),
     [generations, view.approvedImageId],
   );
+  const approvedGen = view.approvedImageId
+    ? generations.find((g) => g.outputImageIds.includes(view.approvedImageId!))
+    : undefined;
 
   const estimate = formatUsd(
     // 1024x1536 portrait is the view default on the server side
@@ -243,6 +251,11 @@ function ViewSlotCard({
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
         <span className="text-xs font-medium text-neutral-300">{view.label}</span>
         <div className="flex items-center gap-2">
+          {active.length > 0 && (
+            <span className="animate-pulse rounded bg-indigo-950 px-1.5 py-0.5 text-[10px] text-indigo-300">
+              {active.some((g) => g.params.autoApproveView) ? 'promoting…' : 'generating…'}
+            </span>
+          )}
           {view.approvedImageId && (
             <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-300">
               approved
@@ -264,13 +277,25 @@ function ViewSlotCard({
 
       <div className="flex aspect-[2/3] items-center justify-center bg-neutral-950/60 p-2">
         {view.approvedImageId ? (
-          <Link to={`/images/${view.approvedImageId}`} className="h-full w-full">
-            <img
-              src={`/api/images/${view.approvedImageId}/file`}
-              alt={view.label}
-              className="h-full w-full rounded object-contain"
-            />
-          </Link>
+          <div className="group relative h-full w-full">
+            <Link to={`/images/${view.approvedImageId}`} className="block h-full w-full">
+              <img
+                src={`/api/images/${view.approvedImageId}/file`}
+                alt={view.label}
+                className="h-full w-full rounded object-contain"
+              />
+            </Link>
+            {approvedGen && (
+              <button
+                onClick={() => promote.mutate(promotePayload(approvedGen, view.approvedImageId!))}
+                disabled={busy}
+                className="absolute inset-x-2 bottom-2 hidden rounded bg-indigo-600/95 py-1 text-[11px] font-medium text-white hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 group-hover:block"
+                title="Re-render this exact image at high quality; the result becomes the approved view"
+              >
+                Promote to high · {formatUsd(estimateCost(approvedGen.params.size, 'high', 1))}
+              </button>
+            )}
+          </div>
         ) : active.length > 0 ? (
           <div className="text-center text-xs text-indigo-400">
             <div className="mb-1 animate-pulse">Generating…</div>
@@ -285,7 +310,7 @@ function ViewSlotCard({
         <div className="border-t border-neutral-800 p-2">
           <div className="mb-1 text-[10px] uppercase tracking-wide text-neutral-600">Candidates</div>
           <div className="flex flex-wrap gap-1.5">
-            {candidates.map((imgId) => (
+            {candidates.map(({ imgId, gen }) => (
               <div key={imgId} className="group relative">
                 <Link to={`/images/${imgId}`}>
                   <img
@@ -294,6 +319,14 @@ function ViewSlotCard({
                     className="h-16 w-12 rounded object-cover"
                   />
                 </Link>
+                <button
+                  onClick={() => promote.mutate(promotePayload(gen, imgId))}
+                  disabled={busy}
+                  className="absolute inset-x-0 top-0 hidden rounded-t bg-indigo-700/90 py-0.5 text-[9px] text-white disabled:bg-neutral-800 group-hover:block"
+                  title={`Promote to high quality (${formatUsd(estimateCost(gen.params.size, 'high', 1))}); the result becomes the approved view`}
+                >
+                  High ⬆
+                </button>
                 <button
                   onClick={() => approveView.mutate({ viewId: view.id, imageId: imgId })}
                   className="absolute inset-x-0 bottom-0 hidden rounded-b bg-emerald-700/90 py-0.5 text-[9px] text-white group-hover:block"
@@ -348,6 +381,7 @@ function ViewSlotCard({
         {generateView.isError && (
           <p className="text-[11px] text-red-400">{generateView.error.message}</p>
         )}
+        {promote.isError && <p className="text-[11px] text-red-400">{promote.error.message}</p>}
       </div>
     </div>
   );

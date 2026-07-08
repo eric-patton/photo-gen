@@ -40,6 +40,7 @@ interface StoredParams {
   stream: boolean;
   partialImages: number;
   folderId?: number | null;
+  autoApproveView?: boolean;
 }
 
 const RETRY_DELAYS_MS = [2_000, 8_000, 30_000];
@@ -277,6 +278,14 @@ async function persistOutputs(
       Date.now() - startedMs,
       gen.id,
     );
+    // Promote of a view candidate: the result becomes the slot's approved image
+    // (no-op if the view was deleted while the job ran).
+    if (params.autoApproveView && gen.character_view_id && imageIds.length > 0) {
+      db.prepare('UPDATE character_views SET approved_image_id = ? WHERE id = ?').run(
+        imageIds[0],
+        gen.character_view_id,
+      );
+    }
   })();
   return imageIds;
 }

@@ -89,6 +89,22 @@ export function registerGenerateRoutes(app: FastifyInstance): void {
       if (!folder) return reply.code(404).send({ error: `Folder ${body.folderId} not found in project` });
     }
 
+    // Promoting a character-view candidate inherits the view linkage: the
+    // high-quality result lands in the slot and replaces the approved image.
+    let characterViewId: number | null = null;
+    if (body.promoteFromImageId) {
+      const src = db
+        .prepare(
+          `SELECT g.character_view_id AS viewId
+           FROM images i JOIN generations g ON g.id = i.generation_id
+           WHERE i.id = ?`,
+        )
+        .get(body.promoteFromImageId) as { viewId: number | null } | undefined;
+      if (src?.viewId && db.prepare('SELECT id FROM character_views WHERE id = ?').get(src.viewId)) {
+        characterViewId = src.viewId;
+      }
+    }
+
     const settings = getSettings();
     const estimatedCost = estimateCost(body.size, body.quality, body.n);
     const canStream = endpoint === 'generations' && body.n === 1 && settings.partialImages > 0;
@@ -102,16 +118,25 @@ export function registerGenerateRoutes(app: FastifyInstance): void {
       stream: canStream,
       partialImages: canStream ? settings.partialImages : 0,
       folderId: body.folderId ?? null,
+      ...(characterViewId != null ? { autoApproveView: true } : {}),
     };
 
     let generationId = 0;
     db.transaction(() => {
       const info = db
         .prepare(
-          `INSERT INTO generations (project_id, endpoint, prompt, user_prompt, params_json, cost_estimated)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO generations (project_id, character_view_id, endpoint, prompt, user_prompt, params_json, cost_estimated)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(body.projectId, endpoint, body.prompt, body.prompt, JSON.stringify(params), estimatedCost);
+        .run(
+          body.projectId,
+          characterViewId,
+          endpoint,
+          body.prompt,
+          body.prompt,
+          JSON.stringify(params),
+          estimatedCost,
+        );
       generationId = Number(info.lastInsertRowid);
       const insertInput = db.prepare(
         'INSERT INTO generation_inputs (generation_id, image_id, role, position) VALUES (?, ?, ?, ?)',

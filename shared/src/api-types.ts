@@ -250,6 +250,8 @@ export interface GenerationDto {
     moderation: Moderation;
     stream: boolean;
     partialImages: number;
+    /** Promote of a character-view image: the result auto-approves into the slot. */
+    autoApproveView?: boolean;
   };
   status: GenerationStatus;
   errorCode: string | null;
