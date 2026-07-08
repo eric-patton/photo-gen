@@ -27,6 +27,9 @@ export interface ImageCallParams {
   outputCompression?: number;
   moderation: Moderation;
   signal?: AbortSignal;
+  /** >0 with onPartial enables streaming partial previews (generations endpoint, n=1). */
+  partialImages?: number;
+  onPartial?: (bytes: Buffer, index: number) => void;
 }
 
 export interface InputImage {
@@ -57,7 +60,35 @@ export async function generateImages(params: ImageCallParams): Promise<ImageCall
   if (params.outputCompression !== undefined && params.outputFormat !== 'png') {
     body.output_compression = params.outputCompression;
   }
-  // Cast through unknown: we never set stream here, so the result is a plain ImagesResponse.
+
+  const streaming = (params.partialImages ?? 0) > 0 && params.n === 1 && params.onPartial;
+  if (streaming) {
+    body.stream = true;
+    body.partial_images = params.partialImages;
+    const stream = (await getClient().images.generate(
+      body as unknown as Parameters<OpenAI['images']['generate']>[0],
+      { signal: params.signal },
+    )) as unknown as AsyncIterable<{
+      type: string;
+      b64_json?: string;
+      partial_image_index?: number;
+      usage?: unknown;
+    }>;
+    let final: Buffer | null = null;
+    let usage: unknown = null;
+    for await (const event of stream) {
+      if (event.type === 'image_generation.partial_image' && event.b64_json) {
+        params.onPartial!(Buffer.from(event.b64_json, 'base64'), event.partial_image_index ?? 0);
+      } else if (event.type === 'image_generation.completed' && event.b64_json) {
+        final = Buffer.from(event.b64_json, 'base64');
+        usage = event.usage ?? null;
+      }
+    }
+    if (!final) throw new Error('Streamed generation ended without a completed image');
+    return { images: [final], usage };
+  }
+
+  // Cast through unknown: stream is not set here, so the result is a plain ImagesResponse.
   const res = (await getClient().images.generate(
     body as unknown as Parameters<OpenAI['images']['generate']>[0],
     { signal: params.signal },

@@ -6,6 +6,7 @@ import {
   useAddImageTag,
   useDeleteImage,
   useFolders,
+  useGenerate,
   useImageDetail,
   usePatchImage,
   useRemoveImageTag,
@@ -18,6 +19,7 @@ export default function ImageDetailPage() {
   const detail = useImageDetail(id);
   const patchImage = usePatchImage();
   const deleteImage = useDeleteImage();
+  const generate = useGenerate();
   const navigate = useNavigate();
 
   if (detail.isLoading) {
@@ -44,6 +46,35 @@ export default function ImageDetailPage() {
         title={img.title || 'Untitled image'}
         actions={
           <>
+            <button
+              onClick={() => navigate(`/images/${img.id}/edit`)}
+              className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-300 hover:border-neutral-500"
+              title="Paint a mask and regenerate part of this image"
+            >
+              Inpaint
+            </button>
+            {img.generation && (
+              <button
+                onClick={() =>
+                  generate.mutate(
+                    {
+                      projectId: img.projectId,
+                      prompt: `${img.generation!.userPrompt}. Keep the composition, subject, and colors of the base image identical; increase detail, sharpness, and rendering quality.`,
+                      size: img.generation!.params.size,
+                      quality: 'high',
+                      n: 1,
+                      promoteFromImageId: img.id,
+                    },
+                    { onSuccess: () => navigate('/generate') },
+                  )
+                }
+                disabled={generate.isPending}
+                className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-300 hover:border-neutral-500 disabled:opacity-50"
+                title="Re-run at high quality using this image as the base"
+              >
+                Promote to high
+              </button>
+            )}
             <button
               onClick={() => patchImage.mutate({ id: img.id, starred: !img.starred })}
               title={img.starred ? 'Unstar' : 'Star'}

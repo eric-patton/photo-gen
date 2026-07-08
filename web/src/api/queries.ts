@@ -203,10 +203,22 @@ export interface GeneratePayload {
   n: number;
   outputFormat?: string;
   referenceImageIds?: string[];
+  baseImageId?: string;
   maskImageId?: string;
   maskDataUrl?: string;
-  characterViewId?: number;
   promoteFromImageId?: string;
+}
+
+export function useGenerationDetail(id: number | undefined) {
+  return useQuery({
+    queryKey: ['generations', 'detail', id],
+    queryFn: () => api<GenerationDto>(`/api/generations/${id}`),
+    enabled: id !== undefined,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'queued' || status === 'running' ? 2_000 : false;
+    },
+  });
 }
 
 export function useGenerate() {

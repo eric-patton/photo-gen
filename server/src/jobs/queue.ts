@@ -193,7 +193,18 @@ async function callOpenAi(
     signal,
   };
   if (gen.endpoint === 'generations') {
-    return generateImages(common);
+    return generateImages({
+      ...common,
+      partialImages: params.stream ? params.partialImages : 0,
+      onPartial: (bytes, index) => {
+        const job = running.get(gen.id);
+        if (job) {
+          job.partial = bytes;
+          job.partialIndex = index;
+        }
+        emit({ type: 'generation:partial', generationId: gen.id, partialIndex: index });
+      },
+    });
   }
   const { inputImages, mask } = loadInputImages(gen.id);
   return editImages({ ...common, inputImages, mask });

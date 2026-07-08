@@ -33,6 +33,7 @@ export const generateRequestSchema = z.object({
   outputFormat: outputFormatSchema.default('png'),
   outputCompression: z.number().int().min(0).max(100).optional(),
   referenceImageIds: z.array(z.string().min(1)).max(8).optional(),
+  baseImageId: z.string().min(1).optional(),
   maskImageId: z.string().min(1).optional(),
   maskDataUrl: z.string().startsWith('data:image/png;base64,').optional(),
   characterViewId: z.number().int().positive().optional(),

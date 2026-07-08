@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GenerationDto } from '@photo-gen/shared';
 import { useCancelGeneration, useGenerations } from '../../api/queries';
+import { onPartial } from '../../api/sse';
 import { formatDuration, formatUsd, parseDbDate, timeAgo } from '../../lib/format';
 
 export default function GenerationList({ projectId }: { projectId?: number }) {
@@ -68,6 +69,17 @@ function GenerationCard({ gen }: { gen: GenerationDto }) {
         </div>
       )}
 
+      {gen.params.n > 1 && gen.status === 'succeeded' && (
+        <Link
+          to={`/generations/${gen.id}`}
+          className="mt-1.5 inline-block text-[11px] text-indigo-400 hover:underline"
+        >
+          Compare batch →
+        </Link>
+      )}
+
+      {active && <PartialPreview generationId={gen.id} />}
+
       {active && (
         <button
           onClick={() => cancel.mutate(gen.id)}
@@ -78,6 +90,41 @@ function GenerationCard({ gen }: { gen: GenerationDto }) {
         </button>
       )}
     </div>
+  );
+}
+
+/** Progressive preview fed by SSE partial-image events. */
+function PartialPreview({ generationId }: { generationId: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let disposed = false;
+    const unsubscribe = onPartial(generationId, () => {
+      void (async () => {
+        const res = await fetch(`/api/generations/${generationId}/partial`);
+        if (!res.ok || disposed) return;
+        const blob = await res.blob();
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })();
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [generationId]);
+
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt="partial preview"
+      className="mt-2 w-full rounded opacity-90"
+      title="Progressive preview — refines as the generation streams"
+    />
   );
 }
 
