@@ -70,6 +70,8 @@ export function getGeneration(id: number): GenerationDto | null {
 export interface ListGenerationsFilters {
   projectId?: number;
   statuses?: string[];
+  viewId?: number;
+  characterId?: number;
   limit?: number;
 }
 
@@ -79,6 +81,16 @@ export function listGenerations(filters: ListGenerationsFilters): GenerationDto[
   if (filters.projectId !== undefined) {
     where.push('project_id = ?');
     params.push(filters.projectId);
+  }
+  if (filters.viewId !== undefined) {
+    where.push('character_view_id = ?');
+    params.push(filters.viewId);
+  }
+  if (filters.characterId !== undefined) {
+    where.push(
+      'character_view_id IN (SELECT id FROM character_views WHERE character_id = ?)',
+    );
+    params.push(filters.characterId);
   }
   if (filters.statuses && filters.statuses.length > 0) {
     where.push(`status IN (${filters.statuses.map(() => '?').join(',')})`);

@@ -5,6 +5,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import type {
+  CharacterDto,
+  CharacterViewDto,
   CostSummaryDto,
   FolderDto,
   GenerateAcceptedDto,
@@ -69,14 +71,126 @@ export function useImageDetail(id: string | undefined) {
   });
 }
 
-export function useGenerations(opts: { statuses?: string[]; project?: number; limit?: number }) {
+export function useGenerations(opts: {
+  statuses?: string[];
+  project?: number;
+  character?: number;
+  limit?: number;
+}) {
   const params = new URLSearchParams();
   if (opts.statuses?.length) params.set('status', opts.statuses.join(','));
   if (opts.project !== undefined) params.set('project', String(opts.project));
+  if (opts.character !== undefined) params.set('character', String(opts.character));
   if (opts.limit) params.set('limit', String(opts.limit));
   return useQuery({
     queryKey: ['generations', opts],
     queryFn: () => api<GenerationDto[]>(`/api/generations?${params}`),
+  });
+}
+
+// ---------- characters ----------
+
+export function useCharacters(projectId: number | undefined) {
+  return useQuery({
+    queryKey: ['characters', projectId],
+    queryFn: () => api<CharacterDto[]>(`/api/characters?project=${projectId}`),
+    enabled: projectId !== undefined,
+  });
+}
+
+export function useCharacter(id: number | undefined) {
+  return useQuery({
+    queryKey: ['characters', 'detail', id],
+    queryFn: () => api<CharacterDto>(`/api/characters/${id}`),
+    enabled: id !== undefined,
+  });
+}
+
+export function useCreateCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { projectId: number; name: string; description: string; styleNotes: string }) =>
+      api<CharacterDto>('/api/characters', { method: 'POST', body: JSON.stringify(payload) }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['characters'] }),
+  });
+}
+
+export function usePatchCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: number; name?: string; description?: string; styleNotes?: string }) =>
+      api<CharacterDto>(`/api/characters/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['characters'] }),
+  });
+}
+
+export function useDeleteCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/characters/${id}`, { method: 'DELETE' }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['characters'] }),
+  });
+}
+
+export function useCreateView() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      characterId,
+      ...payload
+    }: {
+      characterId: number;
+      slot: string;
+      label: string;
+      promptHint?: string;
+      sortOrder?: number;
+    }) =>
+      api<CharacterViewDto>(`/api/characters/${characterId}/views`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['characters'] }),
+  });
+}
+
+export function useDeleteView() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (viewId: number) => api<void>(`/api/character-views/${viewId}`, { method: 'DELETE' }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['characters'] }),
+  });
+}
+
+export function useGenerateView() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      viewId,
+      ...payload
+    }: {
+      viewId: number;
+      extraPrompt?: string;
+      size?: string;
+      quality?: string;
+      n?: number;
+    }) =>
+      api<GenerateAcceptedDto>(`/api/character-views/${viewId}/generate`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['generations'] }),
+  });
+}
+
+export function useApproveView() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ viewId, imageId }: { viewId: number; imageId: string | null }) =>
+      api<CharacterViewDto>(`/api/character-views/${viewId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ imageId }),
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['characters'] }),
   });
 }
 

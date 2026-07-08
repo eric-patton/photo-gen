@@ -13,6 +13,7 @@ import { registerTagRoutes } from './routes/tags';
 import { registerImportRoutes } from './routes/import';
 import { registerCostRoutes } from './routes/costs';
 import { registerSettingsRoutes } from './routes/settings';
+import { registerCharacterRoutes } from './routes/characters';
 
 export interface AppOptions {
   serveStatic: boolean;
@@ -57,6 +58,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerImportRoutes(app);
   registerCostRoutes(app);
   registerSettingsRoutes(app);
+  registerCharacterRoutes(app);
   registerEventRoutes(app);
 
   if (opts.serveStatic) {

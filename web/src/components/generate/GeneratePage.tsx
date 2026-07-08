@@ -5,6 +5,7 @@ import { useFolders, useGenerate } from '../../api/queries';
 import { useAppStore } from '../../stores/appStore';
 import { formatUsd } from '../../lib/format';
 import GenerationList from './GenerationList';
+import RefPicker from './RefPicker';
 
 const QUALITIES: Quality[] = ['low', 'medium', 'high', 'auto'];
 
@@ -20,6 +21,7 @@ export default function GeneratePage() {
   const [customH, setCustomH] = useState('1024');
   const [quality, setQuality] = useState<Quality>('auto');
   const [n, setN] = useState(1);
+  const [refIds, setRefIds] = useState<string[]>([]);
   const size = sizeChoice === 'custom' ? `${customW}x${customH}` : sizeChoice;
   const sizeCheck = useMemo(() => validateSize(size), [size]);
   const estimate = useMemo(
@@ -33,7 +35,15 @@ export default function GeneratePage() {
   const submit = () => {
     if (!canSubmit || !effectiveProjectId) return;
     generate.mutate(
-      { projectId: effectiveProjectId, folderId, prompt: prompt.trim(), size, quality, n },
+      {
+        projectId: effectiveProjectId,
+        folderId,
+        prompt: prompt.trim(),
+        size,
+        quality,
+        n,
+        referenceImageIds: refIds.length > 0 ? refIds : undefined,
+      },
       { onSuccess: () => generate.reset() },
     );
   };
@@ -135,6 +145,8 @@ export default function GeneratePage() {
               />
             </Field>
           </div>
+
+          <RefPicker refIds={refIds} onChange={setRefIds} />
 
           {!sizeCheck.ok && (
             <ul className="space-y-0.5 text-xs text-red-400">

@@ -3,17 +3,18 @@ import { getGeneration, listGenerations } from '../repo/generations';
 import { cancel, getPartial } from '../jobs/queue';
 
 export function registerGenerationRoutes(app: FastifyInstance): void {
-  app.get<{ Querystring: { project?: string; status?: string; limit?: string } }>(
-    '/api/generations',
-    async (req) => {
-      const { project, status, limit } = req.query;
-      return listGenerations({
-        projectId: project ? Number(project) : undefined,
-        statuses: status ? status.split(',').filter(Boolean) : undefined,
-        limit: limit ? Number(limit) : undefined,
-      });
-    },
-  );
+  app.get<{
+    Querystring: { project?: string; status?: string; view?: string; character?: string; limit?: string };
+  }>('/api/generations', async (req) => {
+    const { project, status, view, character, limit } = req.query;
+    return listGenerations({
+      projectId: project ? Number(project) : undefined,
+      statuses: status ? status.split(',').filter(Boolean) : undefined,
+      viewId: view ? Number(view) : undefined,
+      characterId: character ? Number(character) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  });
 
   app.get<{ Params: { id: string } }>('/api/generations/:id', async (req, reply) => {
     const gen = getGeneration(Number(req.params.id));
