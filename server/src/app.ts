@@ -15,6 +15,7 @@ import { registerImportRoutes } from './routes/import';
 import { registerCostRoutes } from './routes/costs';
 import { registerSettingsRoutes } from './routes/settings';
 import { registerCharacterRoutes } from './routes/characters';
+import { registerImproveRoutes } from './routes/improve';
 
 export interface AppOptions {
   serveStatic: boolean;
@@ -60,6 +61,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerCostRoutes(app);
   registerSettingsRoutes(app);
   registerCharacterRoutes(app);
+  registerImproveRoutes(app);
   registerEventRoutes(app);
 
   if (opts.serveStatic) {

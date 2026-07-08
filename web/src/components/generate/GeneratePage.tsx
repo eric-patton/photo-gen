@@ -6,6 +6,7 @@ import { useAppStore } from '../../stores/appStore';
 import { formatUsd } from '../../lib/format';
 import GenerationList from './GenerationList';
 import RefPicker from './RefPicker';
+import PromptImprover from '../common/PromptImprover';
 
 const QUALITIES: Quality[] = ['low', 'medium', 'high', 'auto'];
 
@@ -67,6 +68,9 @@ export default function GeneratePage() {
               placeholder="Describe the image… (Ctrl+Enter to generate)"
               className="w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
             />
+            <div className="mt-1.5">
+              <PromptImprover mode="generation" prompt={prompt} onApply={setPrompt} />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-end gap-4">

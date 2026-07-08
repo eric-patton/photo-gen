@@ -13,6 +13,7 @@ import {
   usePatchCharacter,
 } from '../../api/queries';
 import { formatUsd } from '../../lib/format';
+import PromptImprover from '../common/PromptImprover';
 
 export default function CharacterBoardPage() {
   const { id } = useParams<{ id: string }>();
@@ -137,6 +138,21 @@ function CharacterSheet({ character }: { character: CharacterDto }) {
           onBlur={commit}
           placeholder="e.g. hand-painted stylized fantasy, muted palette"
           className="w-full max-w-3xl rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs"
+        />
+      </div>
+      <div className="max-w-3xl">
+        <PromptImprover
+          mode="character"
+          character={{ name: character.name, description, styleNotes }}
+          onApply={({ description: newDescription, styleNotes: newStyleNotes }) => {
+            setDescription(newDescription);
+            setStyleNotes(newStyleNotes);
+            patchCharacter.mutate({
+              id: character.id,
+              description: newDescription,
+              styleNotes: newStyleNotes,
+            });
+          }}
         />
       </div>
     </div>

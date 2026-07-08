@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import PageHeader from '../layout/PageHeader';
 import { useCharacters, useCreateCharacter } from '../../api/queries';
 import { useAppStore } from '../../stores/appStore';
+import PromptImprover from '../common/PromptImprover';
 
 export default function CharactersPage() {
   const projectId = useAppStore((s) => s.currentProjectId);
@@ -112,6 +113,14 @@ function CreateCharacterForm({ projectId, onDone }: { projectId: number; onDone:
             className="block w-full rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs"
           />
         </FormField>
+        <PromptImprover
+          mode="character"
+          character={{ name, description, styleNotes }}
+          onApply={({ description: newDescription, styleNotes: newStyleNotes }) => {
+            setDescription(newDescription);
+            setStyleNotes(newStyleNotes);
+          }}
+        />
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={onDone}

@@ -1,0 +1,104 @@
+import {
+  estimateTextCost,
+  IMPROVER_MODELS,
+  type ImprovePromptRequest,
+  type ImproveResultDto,
+} from '@photo-gen/shared';
+import { getOpenAIClient } from './openaiImages';
+
+const GENERATION_INSTRUCTIONS = `You are an expert prompt engineer for the gpt-image-2 image generation model, working on game development art (concept art, game assets, characters, environments, props, icons).
+Rewrite the user's image prompt to produce a better image:
+- Keep their intent and every explicit constraint they stated.
+- Add concrete visual specifics where the prompt is vague: subject details, materials, lighting, composition/framing, style.
+- Remove contradictions and filler. Keep it under ~150 words.
+Respond with ONLY a JSON object: {"improvedPrompt": string, "notes": string} where notes is one short sentence describing what you changed.`;
+
+const CHARACTER_INSTRUCTIONS = `You are helping define a game character for consistent multi-angle image generation with gpt-image-2.
+The "description" is the canonical appearance anchor injected into every view generation. It must be specific and unambiguous: face, hair, eyes, skin, build and proportions, complete outfit with colors and materials, equipment and where each piece is worn or carried. Call out asymmetric details explicitly with left/right (e.g. "scar over the RIGHT eyebrow", "hand axe on the LEFT hip") because separate left-side and right-side views are generated from it.
+The "styleNotes" describe art style only: medium, technique, palette, lighting, rendering.
+Improve the user's draft: keep every detail they specified, sharpen vague wording, move misplaced content to the right field, and add missing canonical attributes conservatively.
+Respond with ONLY a JSON object: {"description": string, "styleNotes": string, "notes": string} where notes is one or two short sentences listing anything you added that the user should verify.`;
+
+interface ResponsesUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+export async function improvePrompt(req: ImprovePromptRequest): Promise<ImproveResultDto> {
+  const model = IMPROVER_MODELS[req.speed];
+  const instructions = req.mode === 'generation' ? GENERATION_INSTRUCTIONS : CHARACTER_INSTRUCTIONS;
+  const input =
+    req.mode === 'generation'
+      ? `Image prompt to improve:\n${req.prompt}`
+      : `Character name: ${req.character.name || '(unnamed)'}\n\nCurrent description:\n${req.character.description || '(empty)'}\n\nCurrent style notes:\n${req.character.styleNotes || '(empty)'}`;
+
+  const client = getOpenAIClient();
+  // reasoning.effort values none/xhigh may lag in SDK types — single loose seam.
+  const res = (await client.responses.create({
+    model: model.id,
+    instructions,
+    input,
+    reasoning: { effort: req.effort },
+  } as unknown as Parameters<typeof client.responses.create>[0])) as {
+    output_text?: string;
+    usage?: ResponsesUsage;
+  };
+
+  const text = res.output_text ?? '';
+  const usage = res.usage;
+  const costUsd =
+    usage && typeof usage.input_tokens === 'number' && typeof usage.output_tokens === 'number'
+      ? estimateTextCost(req.speed, {
+          inputTokens: usage.input_tokens,
+          outputTokens: usage.output_tokens,
+        })
+      : null;
+
+  if (req.mode === 'generation') {
+    const parsed = parseJson<{ improvedPrompt?: string; notes?: string }>(text);
+    return {
+      mode: 'generation',
+      // A model that ignored the JSON instruction still gave us a usable rewrite.
+      improvedPrompt: parsed?.improvedPrompt?.trim() || text.trim(),
+      notes: parsed?.notes?.trim() ?? '',
+      model: model.id,
+      costUsd,
+    };
+  }
+
+  const parsed = parseJson<{ description?: string; styleNotes?: string; notes?: string }>(text);
+  if (!parsed?.description) {
+    throw Object.assign(new Error('The model returned an unparseable suggestion — try again'), {
+      statusCode: 502,
+    });
+  }
+  return {
+    mode: 'character',
+    description: parsed.description.trim(),
+    styleNotes: parsed.styleNotes?.trim() ?? req.character.styleNotes,
+    notes: parsed.notes?.trim() ?? '',
+    model: model.id,
+    costUsd,
+  };
+}
+
+function parseJson<T>(text: string): T | null {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1)) as T;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}

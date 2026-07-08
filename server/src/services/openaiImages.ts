@@ -5,6 +5,11 @@ export const MODEL = 'gpt-image-2';
 
 let client: OpenAI | null = null;
 
+/** Shared client for every OpenAI call the server makes (images and text). */
+export function getOpenAIClient(): OpenAI {
+  return getClient();
+}
+
 function getClient(): OpenAI {
   if (!client) {
     if (!process.env.OPENAI_API_KEY) {

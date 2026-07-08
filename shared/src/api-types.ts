@@ -119,6 +119,51 @@ export const DEFAULT_SETTINGS: Settings = {
   outputTokenPriceUsd: 30 / 1_000_000,
 };
 
+// ---------- prompt improver ----------
+
+export const improveSpeedSchema = z.enum(['fast', 'smart']);
+export const improveEffortSchema = z.enum(['none', 'low', 'medium', 'high', 'xhigh']);
+export type ImproveEffort = z.infer<typeof improveEffortSchema>;
+
+export const improvePromptRequestSchema = z.discriminatedUnion('mode', [
+  z.object({
+    mode: z.literal('generation'),
+    prompt: z.string().min(1).max(32_000),
+    speed: improveSpeedSchema.default('fast'),
+    effort: improveEffortSchema.default('medium'),
+  }),
+  z.object({
+    mode: z.literal('character'),
+    character: z.object({
+      name: z.string().max(200).default(''),
+      description: z.string().max(8_000).default(''),
+      styleNotes: z.string().max(4_000).default(''),
+    }),
+    speed: improveSpeedSchema.default('fast'),
+    effort: improveEffortSchema.default('medium'),
+  }),
+]);
+export type ImprovePromptRequest = z.infer<typeof improvePromptRequestSchema>;
+
+export interface ImproveGenerationResultDto {
+  mode: 'generation';
+  improvedPrompt: string;
+  notes: string;
+  model: string;
+  costUsd: number | null;
+}
+
+export interface ImproveCharacterResultDto {
+  mode: 'character';
+  description: string;
+  styleNotes: string;
+  notes: string;
+  model: string;
+  costUsd: number | null;
+}
+
+export type ImproveResultDto = ImproveGenerationResultDto | ImproveCharacterResultDto;
+
 // ---------- DTOs (server -> client) ----------
 
 export interface ProjectDto {

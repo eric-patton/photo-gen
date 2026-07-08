@@ -44,3 +44,25 @@ export function estimateCost(size: string, quality: Quality, n: number): number 
 function round6(x: number): number {
   return Math.round(x * 1e6) / 1e6;
 }
+
+// ---------- prompt-improver text models ----------
+
+export type ImproveSpeed = 'fast' | 'smart';
+
+export const IMPROVER_MODELS: Record<
+  ImproveSpeed,
+  { id: string; label: string; inputPerMTok: number; outputPerMTok: number }
+> = {
+  fast: { id: 'gpt-5.4-mini', label: 'Fast — GPT-5.4 mini', inputPerMTok: 0.75, outputPerMTok: 4.5 },
+  smart: { id: 'gpt-5.4', label: 'Smart — GPT-5.4', inputPerMTok: 2.5, outputPerMTok: 15 },
+};
+
+export function estimateTextCost(
+  speed: ImproveSpeed,
+  usage: { inputTokens: number; outputTokens: number },
+): number {
+  const model = IMPROVER_MODELS[speed];
+  return round6(
+    (usage.inputTokens * model.inputPerMTok + usage.outputTokens * model.outputPerMTok) / 1_000_000,
+  );
+}
