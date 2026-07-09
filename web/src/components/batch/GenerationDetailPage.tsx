@@ -4,6 +4,7 @@ import PageHeader from '../layout/PageHeader';
 import { useGenerate, useGenerationDetail } from '../../api/queries';
 import { formatDuration, formatUsd, timeAgo } from '../../lib/format';
 import { promotePayload } from '../../lib/promote';
+import { navState } from '../../lib/imageNav';
 
 /** Batch compare grid: all candidates of one generation side by side. */
 export default function GenerationDetailPage() {
@@ -58,13 +59,14 @@ export default function GenerationDetailPage() {
 function CandidateCard({ imageId, gen }: { imageId: string; gen: GenerationDto }) {
   const generate = useGenerate();
 
+  const state = navState(gen.outputImageIds, 'batch');
   return (
     <div className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/60">
-      <Link to={`/images/${imageId}`}>
+      <Link to={`/images/${imageId}`} state={state}>
         <img src={`/api/images/${imageId}/file`} alt="" className="w-full object-contain" />
       </Link>
       <div className="flex items-center justify-between p-2">
-        <Link to={`/images/${imageId}`} className="text-xs text-indigo-400 hover:underline">
+        <Link to={`/images/${imageId}`} state={state} className="text-xs text-indigo-400 hover:underline">
           Open
         </Link>
         <button

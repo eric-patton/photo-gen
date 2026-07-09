@@ -16,7 +16,9 @@ import {
 } from '../../api/queries';
 import { formatUsd } from '../../lib/format';
 import { promotePayload } from '../../lib/promote';
+import { navState } from '../../lib/imageNav';
 import PromptImprover from '../common/PromptImprover';
+import RefPicker from '../generate/RefPicker';
 
 export default function CharacterBoardPage() {
   const { id } = useParams<{ id: string }>();
@@ -54,6 +56,22 @@ export default function CharacterBoardPage() {
   }
 
   const hasAnyApproval = data.views.some((v) => v.approvedImageId);
+
+  // Ordered list of every image belonging to this character (approved first,
+  // then candidates, in view order) so the detail view can cycle within just
+  // this character.
+  const characterImageIds: string[] = [];
+  for (const view of data.views) {
+    if (view.approvedImageId && !characterImageIds.includes(view.approvedImageId)) {
+      characterImageIds.push(view.approvedImageId);
+    }
+    for (const gen of generationsByView.get(view.id) ?? []) {
+      if (gen.status !== 'succeeded') continue;
+      for (const imgId of gen.outputImageIds) {
+        if (!characterImageIds.includes(imgId)) characterImageIds.push(imgId);
+      }
+    }
+  }
 
   return (
     <div>
@@ -98,6 +116,8 @@ export default function CharacterBoardPage() {
             view={view}
             generations={generationsByView.get(view.id) ?? []}
             canDelete={data.views.length > 1}
+            navIds={characterImageIds}
+            characterName={data.name}
           />
         ))}
       </div>
@@ -109,6 +129,7 @@ function CharacterSheet({ character }: { character: CharacterDto }) {
   const patchCharacter = usePatchCharacter();
   const [description, setDescription] = useState(character.description);
   const [styleNotes, setStyleNotes] = useState(character.styleNotes);
+  const [conceptRefIds, setConceptRefIds] = useState<string[]>([]);
 
   const commit = () => {
     if (description !== character.description || styleNotes !== character.styleNotes) {
@@ -143,10 +164,18 @@ function CharacterSheet({ character }: { character: CharacterDto }) {
           className="w-full max-w-3xl rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs"
         />
       </div>
-      <div className="max-w-3xl">
+      <div className="max-w-3xl space-y-2">
+        <RefPicker
+          refIds={conceptRefIds}
+          onChange={setConceptRefIds}
+          compact
+          max={3}
+          label="Concept / reference image — “Suggest from image” writes the sheet from it"
+        />
         <PromptImprover
           mode="character"
           character={{ name: character.name, description, styleNotes }}
+          imageIds={conceptRefIds}
           onApply={({ description: newDescription, styleNotes: newStyleNotes }) => {
             setDescription(newDescription);
             setStyleNotes(newStyleNotes);
@@ -214,10 +243,14 @@ function ViewSlotCard({
   view,
   generations,
   canDelete,
+  navIds,
+  characterName,
 }: {
   view: CharacterViewDto;
   generations: GenerationDto[];
   canDelete: boolean;
+  navIds: string[];
+  characterName: string;
 }) {
   const generateView = useGenerateView();
   const approveView = useApproveView();
@@ -226,6 +259,7 @@ function ViewSlotCard({
   const [extraPrompt, setExtraPrompt] = useState('');
   const [quality, setQuality] = useState('medium');
   const [n, setN] = useState(1);
+  const [refIds, setRefIds] = useState<string[]>([]);
 
   const active = generations.filter((g) => g.status === 'queued' || g.status === 'running');
   const busy = active.length > 0 || promote.isPending;
@@ -278,7 +312,11 @@ function ViewSlotCard({
       <div className="flex aspect-[2/3] items-center justify-center bg-neutral-950/60 p-2">
         {view.approvedImageId ? (
           <div className="group relative h-full w-full">
-            <Link to={`/images/${view.approvedImageId}`} className="block h-full w-full">
+            <Link
+              to={`/images/${view.approvedImageId}`}
+              state={navState(navIds, characterName)}
+              className="block h-full w-full"
+            >
               <img
                 src={`/api/images/${view.approvedImageId}/file`}
                 alt={view.label}
@@ -312,7 +350,7 @@ function ViewSlotCard({
           <div className="flex flex-wrap gap-1.5">
             {candidates.map(({ imgId, gen }) => (
               <div key={imgId} className="group relative">
-                <Link to={`/images/${imgId}`}>
+                <Link to={`/images/${imgId}`} state={navState(navIds, characterName)}>
                   <img
                     src={`/api/images/${imgId}/thumb`}
                     alt=""
@@ -340,6 +378,17 @@ function ViewSlotCard({
       )}
 
       <div className="space-y-1.5 border-t border-neutral-800 p-2">
+        <RefPicker
+          refIds={refIds}
+          onChange={setRefIds}
+          compact
+          max={3}
+          label={
+            view.approvedImageId
+              ? 'Extra reference image(s)'
+              : 'Reference image(s) — anchor this view to existing art'
+          }
+        />
         <input
           value={extraPrompt}
           onChange={(e) => setExtraPrompt(e.target.value)}
@@ -368,7 +417,13 @@ function ViewSlotCard({
           <button
             onClick={() =>
               generateView.mutate(
-                { viewId: view.id, extraPrompt: extraPrompt.trim(), quality, n },
+                {
+                  viewId: view.id,
+                  extraPrompt: extraPrompt.trim(),
+                  quality,
+                  n,
+                  extraRefIds: refIds.length > 0 ? refIds : undefined,
+                },
                 { onSuccess: () => setExtraPrompt('') },
               )
             }

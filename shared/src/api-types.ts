@@ -140,6 +140,8 @@ export const improvePromptRequestSchema = z.discriminatedUnion('mode', [
       description: z.string().max(8_000).default(''),
       styleNotes: z.string().max(4_000).default(''),
     }),
+    /** Reference images to derive the character sheet from (vision). */
+    imageIds: z.array(z.string().min(1)).max(4).optional(),
     projectId: z.number().int().positive().optional(),
     speed: improveSpeedSchema.default('fast'),
     effort: improveEffortSchema.default('medium'),

@@ -5,6 +5,7 @@ import FilterBar, { type GalleryFilters } from './FilterBar';
 import BatchBar from './BatchBar';
 import { useImages } from '../../api/queries';
 import { useAppStore, useSelectionStore } from '../../stores/appStore';
+import { navState } from '../../lib/imageNav';
 
 export default function GalleryPage() {
   const projectId = useAppStore((s) => s.currentProjectId);
@@ -93,7 +94,14 @@ export default function GalleryPage() {
                 <button
                   key={img.id}
                   onClick={() =>
-                    selection.selecting ? selection.toggle(img.id) : navigate(`/images/${img.id}`)
+                    selection.selecting
+                      ? selection.toggle(img.id)
+                      : navigate(`/images/${img.id}`, {
+                          state: navState(
+                            items.map((i) => i.id),
+                            'gallery',
+                          ),
+                        })
                   }
                   className={`group relative aspect-square overflow-hidden rounded-md bg-neutral-900 text-left ${
                     isSelected ? 'ring-2 ring-indigo-500' : ''
@@ -106,7 +114,7 @@ export default function GalleryPage() {
                     className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
                   />
                   {img.starred && (
-                    <span className="absolute right-1.5 top-1.5 text-sm text-amber-400 drop-shadow">★</span>
+                    <span className="absolute right-1.5 top-1.5 text-sm text-amber-500 drop-shadow">★</span>
                   )}
                   {img.source === 'imported' && (
                     <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1 py-0.5 text-[9px] text-neutral-300">

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { GenerationDto } from '@photo-gen/shared';
 import PageHeader from '../layout/PageHeader';
+import { navState, readNavContext } from '../../lib/imageNav';
 import {
   useAddImageTag,
   useDeleteImage,
@@ -16,11 +17,58 @@ import { formatBytes, formatDuration, formatUsd, timeAgo } from '../../lib/forma
 
 export default function ImageDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const detail = useImageDetail(id);
   const patchImage = usePatchImage();
   const deleteImage = useDeleteImage();
   const generate = useGenerate();
   const navigate = useNavigate();
+
+  // "Smart gallery" cycling: use the ordered list carried in via navigation
+  // state (gallery / batch / character), falling back to this image's own batch
+  // siblings on a direct link or refresh where no context was passed.
+  const navCtx = readNavContext(location);
+  const contextIds = useMemo(
+    () => navCtx?.ids ?? detail.data?.generation?.outputImageIds ?? [],
+    [navCtx, detail.data?.generation?.outputImageIds],
+  );
+  const contextLabel = navCtx?.label ?? (detail.data?.generation ? 'batch' : undefined);
+  const navIndex = id ? contextIds.indexOf(id) : -1;
+  const prevId = navIndex > 0 ? contextIds[navIndex - 1] : undefined;
+  const nextId =
+    navIndex >= 0 && navIndex < contextIds.length - 1 ? contextIds[navIndex + 1] : undefined;
+
+  const goToImage = useCallback(
+    (target: string | undefined) => {
+      if (!target) return;
+      navigate(`/images/${target}`, { state: navState(contextIds, contextLabel) });
+    },
+    [navigate, contextIds, contextLabel],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable)
+      ) {
+        return; // don't hijack arrow keys while editing title/notes/tags
+      }
+      if (e.key === 'ArrowLeft' && prevId) {
+        e.preventDefault();
+        goToImage(prevId);
+      } else if (e.key === 'ArrowRight' && nextId) {
+        e.preventDefault();
+        goToImage(nextId);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [prevId, nextId, goToImage]);
 
   if (detail.isLoading) {
     return (
@@ -101,7 +149,17 @@ export default function ImageDetailPage() {
         }
       />
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 items-center justify-center bg-neutral-950 p-6">
+        <div className="relative flex min-w-0 flex-1 items-center justify-center bg-neutral-950 p-6">
+          {prevId && (
+            <button
+              onClick={() => goToImage(prevId)}
+              title="Previous (←)"
+              aria-label="Previous image"
+              className="absolute left-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/80 text-xl leading-none text-neutral-300 hover:border-neutral-500 hover:text-neutral-100"
+            >
+              ‹
+            </button>
+          )}
           <a href={`/api/images/${img.id}/file`} target="_blank" rel="noreferrer" title="Open full size">
             <img
               src={`/api/images/${img.id}/file`}
@@ -109,6 +167,22 @@ export default function ImageDetailPage() {
               className="max-h-[80vh] max-w-full rounded object-contain shadow-2xl"
             />
           </a>
+          {nextId && (
+            <button
+              onClick={() => goToImage(nextId)}
+              title="Next (→)"
+              aria-label="Next image"
+              className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/80 text-xl leading-none text-neutral-300 hover:border-neutral-500 hover:text-neutral-100"
+            >
+              ›
+            </button>
+          )}
+          {navIndex >= 0 && contextIds.length > 1 && (
+            <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-neutral-900/80 px-3 py-1 text-xs text-neutral-400">
+              {navIndex + 1} of {contextIds.length}
+              {contextLabel ? ` · ${contextLabel}` : ''}
+            </span>
+          )}
         </div>
 
         <aside className="w-80 shrink-0 space-y-5 overflow-y-auto border-l border-neutral-800 p-4 text-sm">

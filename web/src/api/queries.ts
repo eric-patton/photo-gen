@@ -174,6 +174,7 @@ export function useGenerateView() {
       size?: string;
       quality?: string;
       n?: number;
+      extraRefIds?: string[];
     }) =>
       api<GenerateAcceptedDto>(`/api/character-views/${viewId}/generate`, {
         method: 'POST',

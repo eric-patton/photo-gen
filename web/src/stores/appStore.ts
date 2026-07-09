@@ -1,9 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type Theme = 'light' | 'dark';
+
 interface AppState {
   currentProjectId: number | null;
   setCurrentProject: (id: number | null) => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -11,6 +16,9 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       currentProjectId: null,
       setCurrentProject: (id) => set({ currentProjectId: id }),
+      theme: 'light',
+      setTheme: (theme) => set({ theme }),
+      toggleTheme: () => set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
     }),
     { name: 'photo-gen-app' },
   ),

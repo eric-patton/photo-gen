@@ -6,27 +6,47 @@ import { useAppStore } from '../../stores/appStore';
 export default function RefPicker({
   refIds,
   onChange,
+  compact = false,
+  label,
+  max = 8,
 }: {
   refIds: string[];
   onChange: (next: string[]) => void;
+  /** Smaller thumbnails and a terse label, for use inside cards. */
+  compact?: boolean;
+  /** Overrides the default heading; pass '' to hide it. */
+  label?: string;
+  max?: number;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const thumb = compact ? 'h-12 w-12' : 'h-16 w-16';
+
+  const toggle = (id: string) => {
+    if (refIds.includes(id)) onChange(refIds.filter((r) => r !== id));
+    else if (refIds.length < max) onChange([...refIds, id]);
+  };
 
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-        Reference images{' '}
-        <span className="normal-case text-neutral-600">
-          — the model matches their subject &amp; style (edits endpoint)
-        </span>
-      </label>
+      {label !== '' && (
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+          {label ?? (
+            <>
+              Reference images{' '}
+              <span className="normal-case text-neutral-600">
+                — the model matches their subject &amp; style (edits endpoint)
+              </span>
+            </>
+          )}
+        </label>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {refIds.map((id, index) => (
           <div key={id} className="group relative">
             <img
               src={`/api/images/${id}/thumb`}
               alt={`reference ${index + 1}`}
-              className="h-16 w-16 rounded border border-neutral-700 object-cover"
+              className={`${thumb} rounded border border-neutral-700 object-cover`}
             />
             <span className="absolute left-0.5 top-0.5 rounded bg-black/70 px-1 text-[9px] text-neutral-300">
               {index + 1}
@@ -40,10 +60,10 @@ export default function RefPicker({
             </button>
           </div>
         ))}
-        {refIds.length < 8 && (
+        {refIds.length < max && (
           <button
             onClick={() => setPickerOpen(true)}
-            className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-neutral-700 text-xl text-neutral-600 hover:border-neutral-500 hover:text-neutral-400"
+            className={`flex ${thumb} items-center justify-center rounded border border-dashed border-neutral-700 text-xl text-neutral-600 hover:border-neutral-500 hover:text-neutral-400`}
             title="Add reference image"
           >
             +
@@ -53,9 +73,7 @@ export default function RefPicker({
       {pickerOpen && (
         <RefPickerModal
           selected={refIds}
-          onToggle={(id) =>
-            onChange(refIds.includes(id) ? refIds.filter((r) => r !== id) : [...refIds, id])
-          }
+          onToggle={toggle}
           onClose={() => setPickerOpen(false)}
         />
       )}

@@ -14,11 +14,18 @@ const NAV_ITEMS = [
 ];
 
 export default function AppShell() {
+  const theme = useAppStore((s) => s.theme);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   return (
     <div className="flex h-screen">
       <aside className="flex w-52 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/50">
-        <div className="px-4 py-4 text-lg font-semibold tracking-tight text-neutral-100">
-          photo-gen
+        <div className="flex items-center justify-between px-4 py-4">
+          <span className="text-lg font-semibold tracking-tight text-neutral-100">photo-gen</span>
+          <ThemeToggle />
         </div>
         <ProjectSwitcher />
         <nav className="flex flex-col gap-0.5 px-2">
@@ -165,6 +172,22 @@ function ProjectSwitcher() {
         </div>
       )}
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const theme = useAppStore((s) => s.theme);
+  const toggleTheme = useAppStore((s) => s.toggleTheme);
+  const isDark = theme === 'dark';
+  return (
+    <button
+      onClick={toggleTheme}
+      title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      className="rounded-md border border-neutral-700 px-1.5 py-1 text-sm leading-none text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
+    >
+      {isDark ? '☀' : '☾'}
+    </button>
   );
 }
 

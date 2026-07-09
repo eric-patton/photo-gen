@@ -21,6 +21,8 @@ type Props =
   | {
       mode: 'character';
       character: { name: string; description: string; styleNotes: string };
+      /** When set, the sheet is derived from these reference images (vision). */
+      imageIds?: string[];
       onApply: (result: { description: string; styleNotes: string }) => void;
     };
 
@@ -46,10 +48,12 @@ export default function PromptImprover(props: Props) {
     },
   });
 
+  const fromImage = props.mode === 'character' && (props.imageIds?.length ?? 0) > 0;
+
   const hasInput =
     props.mode === 'generation'
       ? props.prompt.trim().length > 0
-      : (props.character.description + props.character.styleNotes).trim().length > 0;
+      : fromImage || (props.character.description + props.character.styleNotes).trim().length > 0;
 
   const run = () => {
     if (!hasInput || improve.isPending) return;
@@ -57,7 +61,14 @@ export default function PromptImprover(props: Props) {
     improve.mutate(
       props.mode === 'generation'
         ? { mode: 'generation', prompt: props.prompt.trim(), projectId: projectId ?? undefined, speed, effort }
-        : { mode: 'character', character: props.character, projectId: projectId ?? undefined, speed, effort },
+        : {
+            mode: 'character',
+            character: props.character,
+            imageIds: props.imageIds,
+            projectId: projectId ?? undefined,
+            speed,
+            effort,
+          },
     );
   };
 
@@ -77,10 +88,24 @@ export default function PromptImprover(props: Props) {
         <button
           onClick={run}
           disabled={!hasInput || improve.isPending}
-          title={hasInput ? 'Ask a language model to improve this text' : 'Write something first'}
+          title={
+            hasInput
+              ? fromImage
+                ? 'Derive the character sheet from the selected image(s)'
+                : 'Ask a language model to improve this text'
+              : fromImage
+                ? 'Select a reference image first'
+                : 'Write something first'
+          }
           className="rounded border border-neutral-700 px-2 py-1 text-[11px] text-neutral-300 hover:border-indigo-500 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {improve.isPending ? 'Improving…' : '✨ Improve'}
+          {improve.isPending
+            ? fromImage
+              ? 'Reading image…'
+              : 'Improving…'
+            : fromImage
+              ? '✨ Suggest from image'
+              : '✨ Improve'}
         </button>
         <select
           value={speed}
