@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { runGen } from './generate.js';
-import { runCutout, runPreview, runResize, runSlice } from './ops.js';
+import { runCutout, runPixel, runPreview, runResize, runSlice, runVector } from './ops.js';
 import { runProjects, runRecent, runStyles } from './info.js';
 
 const collect = (value: string, previous: string[]): string[] => previous.concat([value]);
@@ -64,8 +64,29 @@ program
   .argument('<files...>', 'input images')
   .requiredOption('--size <sizes>', 'comma list: N (square) or WxH, e.g. 128,96,64')
   .option('--fit <mode>', 'contain|inside|cover', 'contain')
+  .option('--kernel <k>', 'lanczos3|nearest (nearest for pixel art)', 'lanczos3')
   .option('-o, --out <dir>', 'output directory (default: beside each input)')
   .action(runResize);
+
+program
+  .command('pixel')
+  .description('Collapse images onto a true sprite grid (downscale + palette quantize + crisp upscaled preview)')
+  .argument('<files...>', 'input images')
+  .requiredOption('--height <n>', 'sprite height in real pixels, e.g. 32 or 48')
+  .option('--colors <n>', 'quantize to at most n palette colors')
+  .option('--scale <n>', 'also write a nearest-upscaled preview at this factor', '4')
+  .option('--sample <s>', 'mode (dominant color per cell, crisp) or kernel (averaging)', 'mode')
+  .option('--kernel <k>', 'kernel for --sample kernel: lanczos3|nearest', 'lanczos3')
+  .option('-o, --out <dir>', 'output directory (default: beside each input)')
+  .action(runPixel);
+
+program
+  .command('vector')
+  .description('Convert a tiny pixel sprite into a crisp-scaling SVG (plus optional PNG rasters at any size)')
+  .argument('<files...>', 'tiny sprite PNGs (from pgen pixel)')
+  .option('--raster <heights>', 'also rasterize PNGs at these pixel heights, e.g. 72,100,140')
+  .option('-o, --out <dir>', 'output directory (default: beside each input)')
+  .action(runVector);
 
 program
   .command('preview')

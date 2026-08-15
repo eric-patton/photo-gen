@@ -229,6 +229,7 @@ export async function runSlice(input: string, opts: SliceOptions): Promise<void>
 export interface ResizeOptions {
   size: string;
   fit: string;
+  kernel: string;
   out?: string;
 }
 
@@ -236,7 +237,11 @@ export async function runResize(inputs: string[], opts: ResizeOptions): Promise<
   if (!['contain', 'inside', 'cover'].includes(opts.fit)) {
     throw new Error(`--fit must be contain|inside|cover, got '${opts.fit}'`);
   }
+  if (!['lanczos3', 'nearest'].includes(opts.kernel)) {
+    throw new Error(`--kernel must be lanczos3|nearest, got '${opts.kernel}'`);
+  }
   const fit = opts.fit as 'contain' | 'inside' | 'cover';
+  const kernel = opts.kernel as 'lanczos3' | 'nearest';
   const specs = opts.size.split(',').map((s) => s.trim()).filter(Boolean);
   if (specs.length === 0) throw new Error('--size requires at least one size (e.g. 128 or 128,96,64)');
   for (const input of inputs) {
@@ -247,10 +252,185 @@ export async function runResize(inputs: string[], opts: ResizeOptions): Promise<
       const h = m[2] ? Number(m[2]) : w;
       const outFile = opOutPath(input, opts.out, `-${spec}`);
       await sharp(input)
-        .resize(w, h, { fit, background: TRANSPARENT, kernel: 'lanczos3' })
+        .resize(w, h, { fit, background: TRANSPARENT, kernel })
         .png()
         .toFile(outFile);
       console.log(`${outFile}`);
+    }
+  }
+}
+
+/**
+ * Mode-based grid snap: each target cell takes the dominant color of its
+ * source region (averaged within the winning bucket) with hard binary
+ * alpha. Unlike an averaging kernel this never anti-aliases, so chunky
+ * flat art comes out as crisp squares instead of fuzz.
+ */
+function modeSnap(img: RawImage, targetH: number): RawImage {
+  const targetW = Math.max(1, Math.round((img.width * targetH) / img.height));
+  const out = Buffer.alloc(targetW * targetH * 4);
+  for (let ty = 0; ty < targetH; ty++) {
+    const y0 = Math.floor((ty * img.height) / targetH);
+    const y1 = Math.max(y0 + 1, Math.floor(((ty + 1) * img.height) / targetH));
+    for (let tx = 0; tx < targetW; tx++) {
+      const x0 = Math.floor((tx * img.width) / targetW);
+      const x1 = Math.max(x0 + 1, Math.floor(((tx + 1) * img.width) / targetW));
+      const counts = new Map<number, number>();
+      const sums = new Map<number, [number, number, number, number]>();
+      let opaque = 0;
+      let total = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * img.width + x) * 4;
+          total++;
+          if (img.data[i + 3]! < 128) continue;
+          opaque++;
+          const key = ((img.data[i]! >> 3) << 10) | ((img.data[i + 1]! >> 3) << 5) | (img.data[i + 2]! >> 3);
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+          let s = sums.get(key);
+          if (!s) {
+            s = [0, 0, 0, 0];
+            sums.set(key, s);
+          }
+          s[0] += img.data[i]!;
+          s[1] += img.data[i + 1]!;
+          s[2] += img.data[i + 2]!;
+          s[3]++;
+        }
+      }
+      const o = (ty * targetW + tx) * 4;
+      if (opaque * 2 < total) continue; // majority-transparent cell stays clear
+      let bestKey = 0;
+      let bestCount = -1;
+      for (const [k, c] of counts) {
+        if (c > bestCount) {
+          bestCount = c;
+          bestKey = k;
+        }
+      }
+      const s = sums.get(bestKey)!;
+      out[o] = Math.round(s[0] / s[3]);
+      out[o + 1] = Math.round(s[1] / s[3]);
+      out[o + 2] = Math.round(s[2] / s[3]);
+      out[o + 3] = 255;
+    }
+  }
+  return { data: out, width: targetW, height: targetH };
+}
+
+export interface PixelOptions {
+  height: string;
+  colors?: string;
+  scale: string;
+  kernel: string;
+  sample: string;
+  out?: string;
+}
+
+/**
+ * Collapses an image onto a true sprite grid: downscale to --height px
+ * (averaging kernel by default, which flattens AI-rendered texture),
+ * optionally quantize to a small palette, then write the tiny sprite
+ * plus a nearest-upscaled preview. The tiny file IS the game asset.
+ */
+export async function runPixel(inputs: string[], opts: PixelOptions): Promise<void> {
+  const height = Number(opts.height);
+  const scale = Number(opts.scale);
+  const colors = opts.colors ? Number(opts.colors) : null;
+  if (!['lanczos3', 'nearest'].includes(opts.kernel)) {
+    throw new Error(`--kernel must be lanczos3|nearest, got '${opts.kernel}'`);
+  }
+  if (!['mode', 'kernel'].includes(opts.sample)) {
+    throw new Error(`--sample must be mode|kernel, got '${opts.sample}'`);
+  }
+  const kernel = opts.kernel as 'lanczos3' | 'nearest';
+  for (const input of inputs) {
+    let small: Buffer;
+    if (opts.sample === 'mode') {
+      const snapped = modeSnap(await loadRaw(input), height);
+      small = await sharp(snapped.data, {
+        raw: { width: snapped.width, height: snapped.height, channels: 4 },
+      })
+        .png()
+        .toBuffer();
+    } else {
+      small = await sharp(input).resize({ height, kernel }).png().toBuffer();
+    }
+    if (colors) {
+      small = await sharp(small).png({ palette: true, colors, dither: 0 }).toBuffer();
+    }
+    const tinyFile = opOutPath(input, opts.out, `-px${height}`);
+    fs.writeFileSync(tinyFile, small);
+    console.log(tinyFile);
+    if (scale > 1) {
+      const previewFile = opOutPath(input, opts.out, `-px${height}x${scale}`);
+      await sharp(small).resize({ height: height * scale, kernel: 'nearest' }).png().toFile(previewFile);
+      console.log(previewFile);
+    }
+  }
+}
+
+export interface VectorOptions {
+  raster?: string;
+  out?: string;
+}
+
+/**
+ * Converts a tiny pixel sprite into an SVG of run-length-merged rects
+ * (shape-rendering crispEdges), the resolution-independent master for
+ * the sprite: it rasterizes razor-sharp at ANY size, not just integer
+ * multiples. --raster also emits PNGs at the given heights.
+ */
+export async function runVector(inputs: string[], opts: VectorOptions): Promise<void> {
+  for (const input of inputs) {
+    const img = await loadRaw(input);
+    if (img.width > 512 || img.height > 512) {
+      throw new Error(`${input} is ${img.width}x${img.height}; vectorize the tiny sprite (run pgen pixel first)`);
+    }
+    const rects: string[] = [];
+    for (let y = 0; y < img.height; y++) {
+      let x = 0;
+      while (x < img.width) {
+        const i = (y * img.width + x) * 4;
+        if (img.data[i + 3]! < 128) {
+          x++;
+          continue;
+        }
+        const r = img.data[i]!;
+        const g = img.data[i + 1]!;
+        const b = img.data[i + 2]!;
+        let run = 1;
+        while (x + run < img.width) {
+          const j = (y * img.width + x + run) * 4;
+          if (
+            img.data[j + 3]! < 128 ||
+            img.data[j]! !== r ||
+            img.data[j + 1]! !== g ||
+            img.data[j + 2]! !== b
+          ) {
+            break;
+          }
+          run++;
+        }
+        const hex = `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+        rects.push(`<rect x="${x}" y="${y}" width="${run}" height="1" fill="${hex}"/>`);
+        x += run;
+      }
+    }
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${img.width} ${img.height}" ` +
+      `width="${img.width}" height="${img.height}" shape-rendering="crispEdges">${rects.join('')}</svg>`;
+    const svgFile = opOutPath(input, opts.out, '', '.svg');
+    fs.writeFileSync(svgFile, svg);
+    console.log(`${svgFile}  (${rects.length} rects)`);
+    if (opts.raster) {
+      const sizes = opts.raster.split(',').map((s) => Number(s.trim())).filter((v) => Number.isInteger(v) && v > 0);
+      for (const h of sizes) {
+        const density = (72 * h) / img.height;
+        const outFile = opOutPath(input, opts.out, `-v${h}`);
+        await sharp(Buffer.from(svg), { density }).png().toFile(outFile);
+        console.log(`  ${outFile}`);
+      }
     }
   }
 }

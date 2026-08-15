@@ -34,6 +34,8 @@ pgen gen "rune icons: fire, frost, thorns, ..." -p MyGame --sheet 3x3 --cutout
 pgen slice sheet.png --grid 3x3 --key auto --trim --pad-to 128
 pgen cutout art.png --key auto --pad 8      # flood-fill background removal + alpha trim
 pgen resize icon.png --size 128,96,64       # lanczos, transparent padding
+pgen pixel art.png --height 48 --colors 14  # snap onto a true sprite grid (crisp mode sampling)
+pgen vector sprite-px48.png --raster 72,140 # pixel sprite to SVG master + crisp any-size rasters
 pgen preview icon.png --sizes 128,96,64     # composited at game sizes over a panel color
 pgen projects | pgen styles | pgen recent   # library info, style catalog, cost history
 ```
