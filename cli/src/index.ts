@@ -85,6 +85,7 @@ program
   .description('Convert a tiny pixel sprite into a crisp-scaling SVG (plus optional PNG rasters at any size)')
   .argument('<files...>', 'tiny sprite PNGs (from pgen pixel)')
   .option('--raster <heights>', 'also rasterize PNGs at these pixel heights, e.g. 72,100,140')
+  .option('--pad <n>', 'transparent margin around each raster (room for outline shaders)', '0')
   .option('-o, --out <dir>', 'output directory (default: beside each input)')
   .action(runVector);
 

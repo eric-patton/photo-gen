@@ -372,6 +372,7 @@ export async function runPixel(inputs: string[], opts: PixelOptions): Promise<vo
 
 export interface VectorOptions {
   raster?: string;
+  pad: string;
   out?: string;
 }
 
@@ -425,10 +426,17 @@ export async function runVector(inputs: string[], opts: VectorOptions): Promise<
     console.log(`${svgFile}  (${rects.length} rects)`);
     if (opts.raster) {
       const sizes = opts.raster.split(',').map((s) => Number(s.trim())).filter((v) => Number.isInteger(v) && v > 0);
+      const pad = Number(opts.pad);
       for (const h of sizes) {
         const density = (72 * h) / img.height;
         const outFile = opOutPath(input, opts.out, `-v${h}`);
-        await sharp(Buffer.from(svg), { density }).png().toFile(outFile);
+        let pipeline = sharp(Buffer.from(svg), { density });
+        if (pad > 0) {
+          // Transparent margin so edge-sampling shaders (outlines,
+          // glows) have room to draw outside the sprite.
+          pipeline = pipeline.extend({ top: pad, bottom: pad, left: pad, right: pad, background: TRANSPARENT });
+        }
+        await pipeline.png().toFile(outFile);
         console.log(`  ${outFile}`);
       }
     }
