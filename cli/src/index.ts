@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { runGen } from './generate.js';
-import { runCutout, runPixel, runPreview, runResize, runSlice, runVector } from './ops.js';
+import { runCutout, runPixel, runPreview, runRecolor, runResize, runSlice, runVector } from './ops.js';
 import { runProjects, runRecent, runStyles } from './info.js';
 
 const collect = (value: string, previous: string[]): string[] => previous.concat([value]);
@@ -87,6 +87,15 @@ program
   .option('--raster <heights>', 'also rasterize PNGs at these pixel heights, e.g. 72,100,140')
   .option('-o, --out <dir>', 'output directory (default: beside each input)')
   .action(runVector);
+
+program
+  .command('recolor')
+  .description('Shift palette slots on sprite masters: colors near each from hex move by the from->to delta')
+  .argument('<files...>', 'SVG masters or PNGs')
+  .requiredOption('--map <pairs>', 'comma list of from:to hex pairs, e.g. d96c3f:d9483b')
+  .option('--fuzz <n>', 'max color distance to a from hex to be shifted', '60')
+  .option('-o, --out <dir>', 'output directory (default: beside each input, suffixed -rc)')
+  .action(runRecolor);
 
 program
   .command('preview')

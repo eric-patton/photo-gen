@@ -435,6 +435,73 @@ export async function runVector(inputs: string[], opts: VectorOptions): Promise<
   }
 }
 
+export interface RecolorOptions {
+  map: string;
+  fuzz: string;
+  out?: string;
+}
+
+/**
+ * Palette-slot remap for sprite masters. Each mapping from:to shifts
+ * every color within --fuzz of `from` by the (to - from) delta, so a
+ * slot's light and dark shades move together instead of flattening.
+ * Works on SVG rect masters (fill attributes) and on PNGs.
+ */
+export async function runRecolor(inputs: string[], opts: RecolorOptions): Promise<void> {
+  const maps = opts.map.split(',').map((pair) => {
+    const [from, to] = pair.split(':');
+    if (!from || !to) throw new Error(`--map entries must be from:to hex pairs, got '${pair}'`);
+    return { from: parseHexColor(from), to: parseHexColor(to) };
+  });
+  const fuzz = Number(opts.fuzz);
+  const shift = (r: number, g: number, b: number): [number, number, number] | null => {
+    for (const m of maps) {
+      const d = Math.hypot(r - m.from.r, g - m.from.g, b - m.from.b);
+      if (d <= fuzz) {
+        return [
+          Math.max(0, Math.min(255, r + m.to.r - m.from.r)),
+          Math.max(0, Math.min(255, g + m.to.g - m.from.g)),
+          Math.max(0, Math.min(255, b + m.to.b - m.from.b)),
+        ];
+      }
+    }
+    return null;
+  };
+  for (const input of inputs) {
+    if (input.toLowerCase().endsWith('.svg')) {
+      const svg = fs.readFileSync(input, 'utf8');
+      let hits = 0;
+      const recolored = svg.replace(/fill="#([0-9a-fA-F]{6})"/g, (whole, hex: string) => {
+        const v = parseInt(hex, 16);
+        const s = shift((v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
+        if (!s) return whole;
+        hits++;
+        return `fill="#${((s[0] << 16) | (s[1] << 8) | s[2]).toString(16).padStart(6, '0')}"`;
+      });
+      const outFile = opOutPath(input, opts.out, '-rc', '.svg');
+      fs.writeFileSync(outFile, recolored);
+      console.log(`${outFile}  (${hits} fills shifted)`);
+    } else {
+      const img = await loadRaw(input);
+      let hits = 0;
+      for (let i = 0; i < img.width * img.height; i++) {
+        if (img.data[i * 4 + 3]! === 0) continue;
+        const s = shift(img.data[i * 4]!, img.data[i * 4 + 1]!, img.data[i * 4 + 2]!);
+        if (!s) continue;
+        hits++;
+        img.data[i * 4] = s[0];
+        img.data[i * 4 + 1] = s[1];
+        img.data[i * 4 + 2] = s[2];
+      }
+      const outFile = opOutPath(input, opts.out, '-rc');
+      await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 4 } })
+        .png()
+        .toFile(outFile);
+      console.log(`${outFile}  (${hits} pixels shifted)`);
+    }
+  }
+}
+
 export interface PreviewOptions {
   sizes: string;
   bg: string;
