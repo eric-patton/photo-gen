@@ -1,0 +1,4 @@
+#!/bin/sh
+# Game-asset CLI launcher (Git Bash / WSL). Windows shells use pgen.cmd.
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$DIR/node_modules/.bin/tsx" "$DIR/cli/src/index.ts" "$@"

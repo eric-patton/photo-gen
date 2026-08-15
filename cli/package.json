@@ -1,0 +1,20 @@
+{
+  "name": "@photo-gen/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@photo-gen/server": "^0.1.0",
+    "@photo-gen/shared": "^0.1.0",
+    "commander": "^14.0.0",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.0",
+    "typescript": "^7.0.2"
+  }
+}

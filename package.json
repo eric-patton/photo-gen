@@ -6,13 +6,14 @@
   "workspaces": [
     "shared",
     "server",
-    "web"
+    "web",
+    "cli"
   ],
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
     "build": "npm run build -w web && npm run typecheck",
     "start": "npm run start -w server",
-    "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w web"
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w web && npm run typecheck -w cli"
   },
   "devDependencies": {
     "concurrently": "^10.0.3",
