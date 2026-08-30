@@ -3,13 +3,15 @@ import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../layout/PageHeader';
 import { useGenerate, useImageDetail } from '../../api/queries';
 import { formatUsd } from '../../lib/format';
-import { estimateCost } from '@photo-gen/shared';
+import { estimateCost, validateSize } from '@photo-gen/shared';
 
 /**
- * Paint-to-inpaint editor. The mask canvas lives at the image's NATIVE
- * resolution; on-screen painting is mapped through the view transform, so the
- * exported RGBA PNG (painted = alpha 0 = regenerate) always matches the base
- * image pixel-for-pixel.
+ * Image editor. Type a prompt to edit the WHOLE image, or optionally paint a
+ * region to edit only that part (inpaint). The mask canvas lives at the image's
+ * NATIVE resolution; on-screen painting is mapped through the view transform, so
+ * the exported RGBA PNG (painted = alpha 0 = regenerate) always matches the base
+ * image pixel-for-pixel. With no strokes, no mask is sent and the model edits the
+ * entire image guided by the prompt.
  */
 export default function InpaintEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -170,16 +172,20 @@ export default function InpaintEditorPage() {
   };
 
   const submit = () => {
-    if (!img || !prompt.trim() || !hasStrokes || generate.isPending) return;
+    if (!img || !prompt.trim() || generate.isPending) return;
+    const dims = `${img.width}x${img.height}`;
     generate.mutate(
       {
         projectId: img.projectId,
         prompt: prompt.trim(),
-        size: 'auto',
+        // Inpaint keeps native dimensions via the mask; a full-image edit asks
+        // for the base dimensions when they're a legal gpt-image-2 size (e.g.
+        // an imported photo may not be), otherwise falls back to 'auto'.
+        size: hasStrokes ? 'auto' : validateSize(dims).ok ? dims : 'auto',
         quality,
         n: 1,
         baseImageId: img.id,
-        maskDataUrl: exportMask(),
+        ...(hasStrokes ? { maskDataUrl: exportMask() } : {}),
       },
       { onSuccess: () => navigate('/generate') },
     );
@@ -188,7 +194,7 @@ export default function InpaintEditorPage() {
   if (detail.isLoading || !img) {
     return (
       <div>
-        <PageHeader title="Inpaint" />
+        <PageHeader title="Edit" />
         <div className="p-6 text-sm text-neutral-600">
           {detail.isLoading ? 'Loading…' : 'Image not found.'}
         </div>
@@ -198,7 +204,7 @@ export default function InpaintEditorPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={`Inpaint — ${img.title || img.id.slice(0, 8)}`} />
+      <PageHeader title={`Edit — ${img.title || img.id.slice(0, 8)}`} />
       <div className="flex flex-wrap items-center gap-3 border-b border-neutral-800 px-4 py-2 text-xs">
         <label className="flex items-center gap-1.5 text-neutral-400">
           Brush
@@ -228,7 +234,7 @@ export default function InpaintEditorPage() {
           Clear
         </button>
         <span className="text-neutral-600">
-          Paint the region to regenerate · wheel zooms · right/ctrl-drag pans
+          Optional: paint a region to edit only it (inpaint) · wheel zooms · right/ctrl-drag pans
         </span>
       </div>
 
@@ -249,7 +255,11 @@ export default function InpaintEditorPage() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
-          placeholder="Describe what should appear in the painted region… (masking is prompt-guided)"
+          placeholder={
+            hasStrokes
+              ? 'Describe what should appear in the painted region…'
+              : 'Describe the edit — applies to the whole image (paint a region above to limit it)'
+          }
           className="min-w-64 flex-1 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm"
         />
         <select
@@ -263,15 +273,17 @@ export default function InpaintEditorPage() {
         </select>
         <button
           onClick={submit}
-          disabled={!prompt.trim() || !hasStrokes || generate.isPending}
+          disabled={!prompt.trim() || generate.isPending}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500"
         >
           {generate.isPending
             ? 'Submitting…'
-            : `Regenerate region · ~${formatUsd(estimateCost(`${img.width}x${img.height}`, quality as never, 1))}`}
+            : `${hasStrokes ? 'Regenerate region' : 'Apply edit'} · ~${formatUsd(estimateCost(`${img.width}x${img.height}`, quality as never, 1))}`}
         </button>
         {generate.isError && <span className="text-xs text-red-400">{generate.error.message}</span>}
-        {!hasStrokes && <span className="text-xs text-neutral-600">Paint a region first</span>}
+        {!hasStrokes && (
+          <span className="text-xs text-neutral-600">Editing the whole image · paint above to inpaint a region</span>
+        )}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import { promotePayload } from '../../lib/promote';
 import { navState } from '../../lib/imageNav';
 import PromptImprover from '../common/PromptImprover';
 import RefPicker from '../generate/RefPicker';
+import StylePresetPicker from '../styles/StylePresetPicker';
 
 export default function CharacterBoardPage() {
   const { id } = useParams<{ id: string }>();
@@ -163,6 +164,15 @@ function CharacterSheet({ character }: { character: CharacterDto }) {
           placeholder="e.g. hand-painted stylized fantasy, muted palette"
           className="w-full max-w-3xl rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs"
         />
+        <div className="mt-1.5">
+          <StylePresetPicker
+            activePrompt={styleNotes}
+            onPick={(prompt) => {
+              setStyleNotes(prompt);
+              patchCharacter.mutate({ id: character.id, styleNotes: prompt });
+            }}
+          />
+        </div>
       </div>
       <div className="max-w-3xl space-y-2">
         <RefPicker
@@ -323,6 +333,14 @@ function ViewSlotCard({
                 className="h-full w-full rounded object-contain"
               />
             </Link>
+            <button
+              onClick={() => approveView.mutate({ viewId: view.id, imageId: null })}
+              disabled={approveView.isPending || busy}
+              className="absolute right-2 top-2 hidden rounded bg-neutral-900/90 px-2 py-0.5 text-[11px] font-medium text-neutral-200 ring-1 ring-neutral-700 hover:bg-red-700/90 hover:text-white hover:ring-red-600 disabled:opacity-50 group-hover:block"
+              title="Reset this view: remove the approved image so it drops back into candidates. Nothing is deleted."
+            >
+              Reset
+            </button>
             {approvedGen && (
               <button
                 onClick={() => promote.mutate(promotePayload(approvedGen, view.approvedImageId!))}

@@ -97,9 +97,9 @@ export default function ImageDetailPage() {
             <button
               onClick={() => navigate(`/images/${img.id}/edit`)}
               className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-300 hover:border-neutral-500"
-              title="Paint a mask and regenerate part of this image"
+              title="Edit with a prompt — the whole image, or paint a region to inpaint just part"
             >
-              Inpaint
+              Edit
             </button>
             {img.generation && (
               <button

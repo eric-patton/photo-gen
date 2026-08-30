@@ -1,11 +1,22 @@
 # photo-gen
 
-Local image generation and library tool for game development art, backed by OpenAI `gpt-image-2`.
+**A local image-generation pipeline for game art, built around what an image model will not do.**
 
-- Generate and edit concept/final art with prompts, reference images, and painted inpainting masks
-- Organize everything into projects, folders, and tags with full generation metadata and lineage
-- Character turnaround boards: generate consistent multi-angle views of the same character by feeding approved angles back as references
-- Cost tracking per generation and per project
+`gpt-image-2` produces large opaque pictures. A game needs small assets with alpha, at several
+sizes, on a consistent grid, in one style across dozens of items. Everything here is the distance
+between those two facts: generate large on a flat background, flood-fill the background out, trim
+to the alpha bounds, resample down with Lanczos, snap to a true sprite grid, and trace to SVG when
+a vector master is wanted. The prompt steering is written the same way, asking for bold silhouettes
+and simplified detail because that is what survives being scaled to 64 pixels.
+
+- Generate and edit concept and final art with prompts, reference images, and painted inpainting masks
+- Organize everything into projects, folders and tags, with full generation metadata and lineage
+- Character turnaround boards: consistent multi-angle views of one character, by feeding approved
+  angles back in as references so face, outfit and proportions do not drift between views
+- A curated catalogue of game art styles, each recording how the look is actually built in a 3D
+  pipeline rather than only what it looks like, with a fixed sample subject so previews compare
+  like for like
+- Cost tracking per generation and per project, priced from the published rate table
 
 ## Requirements
 
@@ -41,3 +52,21 @@ pgen projects | pgen styles | pgen recent   # library info, style catalog, cost 
 ```
 
 Generations record full lineage and cost in the library exactly like the UI; `--ref`/`--base` accept library image ids or files on disk (auto-imported). gpt-image-2 outputs neither transparency nor small images, so the intended flow is: generate large on a flat background, `--cutout`, then `resize` down.
+
+## Building and testing
+
+```
+npm install
+npm test          # 127 tests
+npm run typecheck # every workspace, plus the tests
+```
+
+The tests cover the deterministic core, which is where the decisions live: the gpt-image-2 size
+constraints and the presets that claim to satisfy them, cost estimation against the published
+anchor table (including the pixel-scaling fallback for non-anchor sizes), the prompt composers for
+character turnarounds and the asset scaffolds, and the style catalogue's own invariants. Anything
+that calls OpenAI sits behind those and is not exercised here.
+
+## License
+
+[MIT](LICENSE).

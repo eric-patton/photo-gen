@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Gallery' },
   { to: '/generate', label: 'Generate' },
   { to: '/characters', label: 'Characters' },
+  { to: '/style-lab', label: 'Style Lab' },
   { to: '/costs', label: 'Costs' },
   { to: '/settings', label: 'Settings' },
 ];

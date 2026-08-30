@@ -4,6 +4,7 @@ import PageHeader from '../layout/PageHeader';
 import { useCharacters, useCreateCharacter } from '../../api/queries';
 import { useAppStore } from '../../stores/appStore';
 import PromptImprover from '../common/PromptImprover';
+import StylePresetPicker from '../styles/StylePresetPicker';
 
 export default function CharactersPage() {
   const projectId = useAppStore((s) => s.currentProjectId);
@@ -16,12 +17,20 @@ export default function CharactersPage() {
         title="Characters"
         actions={
           !creating && (
-            <button
-              onClick={() => setCreating(true)}
-              className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
-            >
-              New character
-            </button>
+            <>
+              <Link
+                to="/style-lab"
+                className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500"
+              >
+                Compare styles
+              </Link>
+              <button
+                onClick={() => setCreating(true)}
+                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+              >
+                New character
+              </button>
+            </>
           )
         }
       />
@@ -105,13 +114,16 @@ function CreateCharacterForm({ projectId, onDone }: { projectId: number; onDone:
             className="block w-full rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs"
           />
         </FormField>
-        <FormField label="Art style notes" hint="e.g. 'hand-painted stylized fantasy, muted palette, thick outlines'">
+        <FormField label="Art style notes" hint="Pick a game-art preset below, or write your own (e.g. 'hand-painted stylized fantasy, muted palette, thick outlines').">
           <textarea
             value={styleNotes}
             onChange={(e) => setStyleNotes(e.target.value)}
             rows={2}
             className="block w-full rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs"
           />
+          <div className="mt-1.5">
+            <StylePresetPicker activePrompt={styleNotes} onPick={(prompt) => setStyleNotes(prompt)} />
+          </div>
         </FormField>
         <PromptImprover
           mode="character"

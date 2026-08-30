@@ -7,6 +7,7 @@ import InpaintEditorPage from './components/editor/InpaintEditorPage';
 import GenerationDetailPage from './components/batch/GenerationDetailPage';
 import CharactersPage from './components/characters/CharactersPage';
 import CharacterBoardPage from './components/characters/CharacterBoardPage';
+import StyleLabPage from './components/styles/StyleLabPage';
 import CostsPage from './components/costs/CostsPage';
 import SettingsPage from './components/settings/SettingsPage';
 
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/generations/:id" element={<GenerationDetailPage />} />
         <Route path="/characters" element={<CharactersPage />} />
         <Route path="/characters/:id" element={<CharacterBoardPage />} />
+        <Route path="/style-lab" element={<StyleLabPage />} />
         <Route path="/costs" element={<CostsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
